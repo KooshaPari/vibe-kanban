@@ -10,14 +10,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Plus, Edit2, Trash2, Loader2 } from 'lucide-react';
 import { templatesApi } from '@/lib/api';
 import type { TaskTemplate, CreateTaskTemplate, UpdateTaskTemplate } from 'shared/types';
@@ -170,45 +162,55 @@ export function TaskTemplateManager({ projectId, isGlobal = false }: TaskTemplat
           No templates yet. Create your first template to get started.
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Template Name</TableHead>
-              <TableHead>Title</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {templates.map((template) => (
-              <TableRow key={template.id}>
-                <TableCell>{template.template_name}</TableCell>
-                <TableCell>{template.title}</TableCell>
-                <TableCell className="max-w-[300px] truncate">
-                  {template.description || '-'}
-                </TableCell>
-                <TableCell>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenDialog(template)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(template)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="border rounded-lg overflow-hidden">
+          <div className="max-h-[400px] overflow-auto">
+            <table className="w-full">
+              <thead className="border-b bg-muted/50 sticky top-0">
+                <tr>
+                  <th className="text-left p-2 text-sm font-medium">Template Name</th>
+                  <th className="text-left p-2 text-sm font-medium">Title</th>
+                  <th className="text-left p-2 text-sm font-medium">Description</th>
+                  <th className="text-right p-2 text-sm font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {templates.map((template) => (
+                  <tr key={template.id} className="border-b hover:bg-muted/30 transition-colors">
+                    <td className="p-2 text-sm font-medium">{template.template_name}</td>
+                    <td className="p-2 text-sm">{template.title}</td>
+                    <td className="p-2 text-sm">
+                      <div className="max-w-[200px] truncate" title={template.description || ''}>
+                        {template.description || <span className="text-muted-foreground">-</span>}
+                      </div>
+                    </td>
+                    <td className="p-2">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleOpenDialog(template)}
+                          title="Edit template"
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleDelete(template)}
+                          title="Delete template"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

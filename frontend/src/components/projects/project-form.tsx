@@ -339,8 +339,8 @@ export function ProjectForm({
         </DialogHeader>
 
         {isEditing ? (
-          <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs defaultValue="general" className="w-full -mt-2">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="templates">Task Templates</TabsTrigger>
             </TabsList>
@@ -369,7 +369,7 @@ export function ProjectForm({
                 </DialogFooter>
               </form>
             </TabsContent>
-            <TabsContent value="templates" className="space-y-4">
+            <TabsContent value="templates" className="mt-0 pt-0">
               <TaskTemplateManager projectId={project?.id} />
             </TabsContent>
           </Tabs>
