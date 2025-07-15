@@ -12,18 +12,27 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Edit2, Trash2, Loader2 } from 'lucide-react';
 import { templatesApi } from '@/lib/api';
-import type { TaskTemplate, CreateTaskTemplate, UpdateTaskTemplate } from 'shared/types';
+import type {
+  TaskTemplate,
+  CreateTaskTemplate,
+  UpdateTaskTemplate,
+} from 'shared/types';
 
 interface TaskTemplateManagerProps {
   projectId?: string;
   isGlobal?: boolean;
 }
 
-export function TaskTemplateManager({ projectId, isGlobal = false }: TaskTemplateManagerProps) {
+export function TaskTemplateManager({
+  projectId,
+  isGlobal = false,
+}: TaskTemplateManagerProps) {
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<TaskTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<TaskTemplate | null>(
+    null
+  );
   const [formData, setFormData] = useState({
     template_name: '',
     title: '',
@@ -42,14 +51,16 @@ export function TaskTemplateManager({ projectId, isGlobal = false }: TaskTemplat
       const data = isGlobal
         ? await templatesApi.listGlobal()
         : projectId
-        ? await templatesApi.listByProject(projectId)
-        : [];
-      
+          ? await templatesApi.listByProject(projectId)
+          : [];
+
       // Filter to show only templates for this specific scope
-      const filtered = data.filter(template => 
-        isGlobal ? template.project_id === null : template.project_id === projectId
+      const filtered = data.filter((template) =>
+        isGlobal
+          ? template.project_id === null
+          : template.project_id === projectId
       );
-      
+
       setTemplates(filtered);
     } catch (err) {
       console.error('Failed to fetch templates:', err);
@@ -125,7 +136,11 @@ export function TaskTemplateManager({ projectId, isGlobal = false }: TaskTemplat
   };
 
   const handleDelete = async (template: TaskTemplate) => {
-    if (!confirm(`Are you sure you want to delete the template "${template.template_name}"?`)) {
+    if (
+      !confirm(
+        `Are you sure you want to delete the template "${template.template_name}"?`
+      )
+    ) {
       return;
     }
 
@@ -167,20 +182,36 @@ export function TaskTemplateManager({ projectId, isGlobal = false }: TaskTemplat
             <table className="w-full">
               <thead className="border-b bg-muted/50 sticky top-0">
                 <tr>
-                  <th className="text-left p-2 text-sm font-medium">Template Name</th>
+                  <th className="text-left p-2 text-sm font-medium">
+                    Template Name
+                  </th>
                   <th className="text-left p-2 text-sm font-medium">Title</th>
-                  <th className="text-left p-2 text-sm font-medium">Description</th>
-                  <th className="text-right p-2 text-sm font-medium">Actions</th>
+                  <th className="text-left p-2 text-sm font-medium">
+                    Description
+                  </th>
+                  <th className="text-right p-2 text-sm font-medium">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {templates.map((template) => (
-                  <tr key={template.id} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="p-2 text-sm font-medium">{template.template_name}</td>
+                  <tr
+                    key={template.id}
+                    className="border-b hover:bg-muted/30 transition-colors"
+                  >
+                    <td className="p-2 text-sm font-medium">
+                      {template.template_name}
+                    </td>
                     <td className="p-2 text-sm">{template.title}</td>
                     <td className="p-2 text-sm">
-                      <div className="max-w-[200px] truncate" title={template.description || ''}>
-                        {template.description || <span className="text-muted-foreground">-</span>}
+                      <div
+                        className="max-w-[200px] truncate"
+                        title={template.description || ''}
+                      >
+                        {template.description || (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </div>
                     </td>
                     <td className="p-2">
@@ -226,7 +257,9 @@ export function TaskTemplateManager({ projectId, isGlobal = false }: TaskTemplat
               <Input
                 id="template-name"
                 value={formData.template_name}
-                onChange={(e) => setFormData({ ...formData, template_name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, template_name: e.target.value })
+                }
                 placeholder="e.g., Bug Fix, Feature Request"
               />
             </div>
@@ -235,7 +268,9 @@ export function TaskTemplateManager({ projectId, isGlobal = false }: TaskTemplat
               <Input
                 id="template-title"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
                 placeholder="e.g., Fix bug in..."
               />
             </div>
@@ -244,17 +279,21 @@ export function TaskTemplateManager({ projectId, isGlobal = false }: TaskTemplat
               <Textarea
                 id="template-description"
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
                 placeholder="Enter a default description for tasks created with this template"
                 rows={4}
               />
             </div>
-            {error && (
-              <div className="text-sm text-red-600">{error}</div>
-            )}
+            {error && <div className="text-sm text-red-600">{error}</div>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog} disabled={saving}>
+            <Button
+              variant="outline"
+              onClick={handleCloseDialog}
+              disabled={saving}
+            >
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving}>

@@ -293,8 +293,8 @@ export function ProjectForm({
         />
         <p className="text-sm text-muted-foreground">
           This script will run after creating the worktree and before the
-          executor starts. Use it for setup tasks like installing
-          dependencies or preparing the environment.
+          executor starts. Use it for setup tasks like installing dependencies
+          or preparing the environment.
         </p>
       </div>
 
@@ -310,8 +310,8 @@ export function ProjectForm({
         />
         <p className="text-sm text-muted-foreground">
           This script can be run from task attempts to start a development
-          server. Use it to quickly start your project's dev server for
-          testing changes.
+          server. Use it to quickly start your project's dev server for testing
+          changes.
         </p>
       </div>
 
@@ -326,7 +326,9 @@ export function ProjectForm({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className={isEditing ? "sm:max-w-[600px]" : "sm:max-w-[425px]"}>
+      <DialogContent
+        className={isEditing ? 'sm:max-w-[600px]' : 'sm:max-w-[425px]'}
+      >
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Project' : 'Create New Project'}
@@ -358,11 +360,7 @@ export function ProjectForm({
                   </Button>
                   <Button
                     type="submit"
-                    disabled={
-                      loading ||
-                      !name.trim() ||
-                      !gitRepoPath.trim()
-                    }
+                    disabled={loading || !name.trim() || !gitRepoPath.trim()}
                   >
                     {loading ? 'Saving...' : 'Save Changes'}
                   </Button>
