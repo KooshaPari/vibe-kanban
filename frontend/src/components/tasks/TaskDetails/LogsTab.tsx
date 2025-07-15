@@ -1,5 +1,6 @@
 import { useContext } from 'react';
 import { MessageSquare } from 'lucide-react';
+import type { ExecutionProcess } from 'shared/types.ts';
 import { NormalizedConversationViewer } from '@/components/tasks/TaskDetails/LogsTab/NormalizedConversationViewer.tsx';
 import {
   TaskAttemptDataContext,
@@ -78,7 +79,7 @@ function LogsTab() {
     const setupProcess = executionState.setup_process_id
       ? attemptData.runningProcessDetails[executionState.setup_process_id]
       : Object.values(attemptData.runningProcessDetails).find(
-          (process) => process.process_type === 'setupscript'
+          (process: ExecutionProcess) => process.process_type === 'setupscript'
         );
 
     return (
@@ -106,7 +107,7 @@ function LogsTab() {
           executionState.coding_agent_process_id
         ]
       : Object.values(attemptData.runningProcessDetails).find(
-          (process) => process.process_type === 'codingagent'
+          (process: ExecutionProcess) => process.process_type === 'codingagent'
         );
 
     return (

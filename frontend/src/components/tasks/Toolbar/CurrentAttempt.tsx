@@ -44,6 +44,7 @@ import {
 import type {
   BranchStatus,
   ExecutionProcess,
+  ExecutionProcessSummary,
   GitBranch,
   TaskAttempt,
 } from 'shared/types.ts';
@@ -137,7 +138,7 @@ function CurrentAttempt({
   // Find running dev server in current project
   const runningDevServer = useMemo(() => {
     return attemptData.processes.find(
-      (process) =>
+      (process: ExecutionProcessSummary) =>
         process.process_type === 'devserver' && process.status === 'running'
     );
   }, [attemptData.processes]);

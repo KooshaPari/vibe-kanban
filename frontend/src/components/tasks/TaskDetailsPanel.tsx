@@ -67,6 +67,7 @@ export function TaskDetailsPanel({
     <>
       {!task ? null : (
         <TaskDetailsProvider
+          key={task.id}
           task={task}
           projectId={projectId}
           setShowEditorDialog={setShowEditorDialog}

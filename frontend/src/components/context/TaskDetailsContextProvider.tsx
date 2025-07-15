@@ -12,6 +12,7 @@ import {
 import type {
   EditorType,
   ExecutionProcess,
+  ExecutionProcessSummary,
   TaskAttempt,
   TaskAttemptState,
   TaskWithAttemptStatus,
@@ -217,7 +218,7 @@ const TaskDetailsProvider: FC<{
             }
           }
 
-          setAttemptData((prev) => {
+          setAttemptData((prev: AttemptData) => {
             const newData = {
               activities: activitiesResult,
               processes: processesResult,
@@ -247,7 +248,7 @@ const TaskDetailsProvider: FC<{
     }
 
     return attemptData.processes.some(
-      (process) =>
+      (process: ExecutionProcessSummary) =>
         (process.process_type === 'codingagent' ||
           process.process_type === 'setupscript') &&
         process.status === 'running'

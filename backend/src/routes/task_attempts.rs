@@ -6,18 +6,21 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::{
     app_state::AppState,
-    executor::{ExecutorConfig, NormalizedConversation, NormalizedEntry, NormalizedEntryType},
+    executor::{
+        ActionType, ExecutorConfig, NormalizedConversation, NormalizedEntry, NormalizedEntryType,
+    },
     models::{
         config::Config,
         execution_process::{
             ExecutionProcess, ExecutionProcessStatus, ExecutionProcessSummary, ExecutionProcessType,
         },
         executor_session::ExecutorSession,
-        task::Task,
+        task::{Task, TaskStatus},
         task_attempt::{
             BranchStatus, CreateFollowUpAttempt, CreatePrParams, CreateTaskAttempt, TaskAttempt,
             TaskAttemptState, TaskAttemptStatus, WorktreeDiff,
@@ -46,6 +49,12 @@ pub struct FollowUpResponse {
     pub message: String,
     pub actual_attempt_id: Uuid,
     pub created_new_attempt: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ApprovePlanRequest {
+    pub approve: bool,
+    pub feedback: Option<String>,
 }
 
 pub async fn get_task_attempts(
@@ -1359,6 +1368,285 @@ pub async fn get_execution_process_normalized_logs(
     }))
 }
 
+/// Find the claudeplan execution process for a task attempt
+async fn find_claudeplan_process(
+    pool: &SqlitePool,
+    attempt_id: Uuid,
+) -> Result<ExecutionProcess, StatusCode> {
+    let execution_processes =
+        match ExecutionProcess::find_by_task_attempt_id(pool, attempt_id).await {
+            Ok(processes) => processes,
+            Err(e) => {
+                tracing::error!("Failed to fetch execution processes: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+    execution_processes
+        .iter()
+        .rev()
+        .find(|p| p.executor_type.as_deref() == Some("claudeplan"))
+        .cloned()
+        .ok_or_else(|| {
+            tracing::error!("No claudeplan process found for task attempt");
+            StatusCode::NOT_FOUND
+        })
+}
+
+/// Extract plan content and tool_use_id from normalized conversation
+fn extract_plan_content_and_tool_use_id(
+    normalized_conversation: &NormalizedConversation,
+) -> Result<(String, Option<String>), StatusCode> {
+    normalized_conversation
+        .entries
+        .iter()
+        .rev()
+        .find_map(|entry| {
+            if let NormalizedEntryType::ToolUse {
+                action_type: ActionType::PlanPresentation { plan },
+                ..
+            } = &entry.entry_type
+            {
+                let tool_use_id = entry
+                    .metadata
+                    .as_ref()
+                    .and_then(|m| m.get("id"))
+                    .and_then(|id| id.as_str())
+                    .map(|s| s.to_string());
+                Some((plan.clone(), tool_use_id))
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| {
+            tracing::error!("No plan content found in conversation");
+            StatusCode::NOT_FOUND
+        })
+}
+
+/// Create a properly formatted JSON conversation entry
+fn create_conversation_entry_json(tool_use_id: &Option<String>, content: &str) -> String {
+    use serde_json::json;
+
+    let entry = if let Some(tool_use_id) = tool_use_id {
+        json!({
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [{
+                    "tool_use_id": tool_use_id,
+                    "type": "tool_result",
+                    "content": content
+                }]
+            }
+        })
+    } else {
+        json!({
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "content": content
+                }]
+            }
+        })
+    };
+
+    entry.to_string()
+}
+
+/// Append a conversation entry to the execution process stdout
+async fn append_conversation_entry(
+    pool: &SqlitePool,
+    process_id: Uuid,
+    entry_json: &str,
+) -> Result<(), StatusCode> {
+    if let Err(e) =
+        ExecutionProcess::append_stdout(pool, process_id, &format!("{}\n", entry_json)).await
+    {
+        tracing::error!(
+            "Failed to append conversation entry to execution process: {}",
+            e
+        );
+        // Continue anyway, this is not critical
+    }
+    Ok(())
+}
+
+pub async fn approve_plan(
+    Path((project_id, task_id, attempt_id)): Path<(Uuid, Uuid, Uuid)>,
+    State(app_state): State<AppState>,
+    Json(request): Json<ApprovePlanRequest>,
+) -> Result<ResponseJson<ApiResponse<FollowUpResponse>>, StatusCode> {
+    // Verify task attempt exists and belongs to the correct task
+    match TaskAttempt::exists_for_task(&app_state.db_pool, attempt_id, task_id, project_id).await {
+        Ok(false) => return Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!("Failed to check task attempt existence: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        Ok(true) => {}
+    }
+
+    if request.approve {
+        // Plan approved - extract plan content and create new task
+
+        // Get the current task
+        let current_task = match Task::find_by_id(&app_state.db_pool, task_id).await {
+            Ok(Some(task)) => task,
+            Ok(None) => return Err(StatusCode::NOT_FOUND),
+            Err(e) => {
+                tracing::error!("Failed to fetch current task: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        // Find the claudeplan process
+        let claudeplan_process = find_claudeplan_process(&app_state.db_pool, attempt_id).await?;
+
+        // Get the normalized conversation to extract plan content and tool_use_id
+        let executor_config = ExecutorConfig::ClaudePlan;
+        let executor = executor_config.create_executor();
+
+        let working_dir_path = match std::fs::canonicalize(&claudeplan_process.working_directory) {
+            Ok(canonical_path) => canonical_path.to_string_lossy().to_string(),
+            Err(_) => claudeplan_process.working_directory.clone(),
+        };
+
+        let normalized_conversation = match executor.normalize_logs(
+            &claudeplan_process.stdout.clone().unwrap_or_default(),
+            &working_dir_path,
+        ) {
+            Ok(conv) => conv,
+            Err(e) => {
+                tracing::error!("Failed to normalize logs: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        // Extract plan content and tool_use_id from conversation
+        let (plan_content, extracted_tool_use_id) =
+            extract_plan_content_and_tool_use_id(&normalized_conversation)?;
+
+        // Add conversation entry for plan approval
+        let approval_entry =
+            create_conversation_entry_json(&extracted_tool_use_id, "Plan approved by user");
+        append_conversation_entry(&app_state.db_pool, claudeplan_process.id, &approval_entry)
+            .await?;
+
+        // Create new task with plan content
+        use crate::models::task::CreateTask;
+        let new_task_id = Uuid::new_v4();
+        let create_task_data = CreateTask {
+            project_id,
+            title: format!("Execute Plan: {}", current_task.title),
+            description: Some(plan_content),
+        };
+
+        let new_task = match Task::create(&app_state.db_pool, &create_task_data, new_task_id).await
+        {
+            Ok(task) => task,
+            Err(e) => {
+                tracing::error!("Failed to create new task: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        // Mark original task as completed
+        if let Err(e) =
+            Task::update_status(&app_state.db_pool, task_id, project_id, TaskStatus::Done).await
+        {
+            tracing::error!("Failed to update original task status to Done: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        } else {
+            tracing::info!(
+                "Original task {} marked as Done after plan approval",
+                task_id
+            );
+        }
+
+        Ok(ResponseJson(ApiResponse {
+            success: true,
+            data: Some(FollowUpResponse {
+                message: format!("Plan approved and new task created: {}", new_task.title),
+                actual_attempt_id: new_task_id, // Return the new task ID
+                created_new_attempt: true,
+            }),
+            message: Some("Plan approved and new task created".to_string()),
+        }))
+    } else {
+        // Plan declined - provide feedback and stay in plan mode
+        let feedback_prompt = request
+            .feedback
+            .unwrap_or_else(|| "Please revise the plan.".to_string());
+
+        // Find the claudeplan process
+        let claudeplan_process = find_claudeplan_process(&app_state.db_pool, attempt_id).await?;
+
+        // Get the normalized conversation to extract tool_use_id for rejection
+        let executor_config = ExecutorConfig::ClaudePlan;
+        let executor = executor_config.create_executor();
+
+        let working_dir_path = match std::fs::canonicalize(&claudeplan_process.working_directory) {
+            Ok(canonical_path) => canonical_path.to_string_lossy().to_string(),
+            Err(_) => claudeplan_process.working_directory.clone(),
+        };
+
+        let normalized_conversation = match executor.normalize_logs(
+            &claudeplan_process.stdout.clone().unwrap_or_default(),
+            &working_dir_path,
+        ) {
+            Ok(conv) => conv,
+            Err(e) => {
+                tracing::error!("Failed to normalize logs for rejection: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        // Extract tool_use_id from conversation for rejection
+        let (_, tool_use_id) = extract_plan_content_and_tool_use_id(&normalized_conversation)?;
+
+        // Add conversation entry for plan rejection
+        let rejection_content = format!("Plan rejected by user: {}", feedback_prompt);
+        let rejection_entry = create_conversation_entry_json(&tool_use_id, &rejection_content);
+        append_conversation_entry(&app_state.db_pool, claudeplan_process.id, &rejection_entry)
+            .await?;
+
+        match TaskAttempt::start_followup_execution(
+            &app_state.db_pool,
+            &app_state,
+            attempt_id,
+            task_id,
+            project_id,
+            &feedback_prompt,
+        )
+        .await
+        {
+            Ok(actual_attempt_id) => {
+                let created_new_attempt = actual_attempt_id != attempt_id;
+
+                Ok(ResponseJson(ApiResponse {
+                    success: true,
+                    data: Some(FollowUpResponse {
+                        message: "Plan declined, feedback provided".to_string(),
+                        actual_attempt_id,
+                        created_new_attempt,
+                    }),
+                    message: Some("Plan declined with feedback".to_string()),
+                }))
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to start follow-up execution for plan decline: {}",
+                    e
+                );
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    }
+}
+
 pub fn task_attempts_router() -> Router<AppState> {
     use axum::routing::post;
 
@@ -1431,5 +1719,9 @@ pub fn task_attempts_router() -> Router<AppState> {
         .route(
             "/projects/:project_id/tasks/:task_id/attempts/:attempt_id",
             get(get_task_attempt_execution_state),
+        )
+        .route(
+            "/projects/:project_id/tasks/:task_id/attempts/:attempt_id/approve-plan",
+            post(approve_plan),
         )
 }

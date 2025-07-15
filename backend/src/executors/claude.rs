@@ -15,12 +15,15 @@ use crate::{
 };
 
 /// An executor that uses Claude CLI to process tasks
-pub struct ClaudeExecutor;
+pub struct ClaudeExecutor {
+    pub use_plan_mode: bool,
+}
 
 /// An executor that resumes a Claude session
 pub struct ClaudeFollowupExecutor {
     pub session_id: String,
     pub prompt: String,
+    pub use_plan_mode: bool,
 }
 
 #[async_trait]
@@ -56,7 +59,11 @@ Task title: {}"#,
         // Use shell command for cross-platform compatibility
         let (shell_cmd, shell_arg) = get_shell_command();
         // Pass prompt via stdin instead of command line to avoid shell escaping issues
-        let claude_command = "npx -y @anthropic-ai/claude-code@latest -p --dangerously-skip-permissions --verbose --output-format=stream-json";
+        let claude_command = if self.use_plan_mode {
+            "npx -y @anthropic-ai/claude-code@latest -p --permission-mode=plan --verbose --output-format=stream-json"
+        } else {
+            "npx -y @anthropic-ai/claude-code@latest -p --dangerously-skip-permissions --verbose --output-format=stream-json"
+        };
 
         let mut command = Command::new(shell_cmd);
         command
@@ -108,10 +115,13 @@ Task title: {}"#,
         logs: &str,
         worktree_path: &str,
     ) -> Result<NormalizedConversation, String> {
+        use std::collections::HashMap;
+
         use serde_json::Value;
 
         let mut entries = Vec::new();
         let mut session_id = None;
+        let mut tool_use_mapping: HashMap<String, (String, Value)> = HashMap::new(); // tool_use_id -> (tool_name, input)
 
         for line in logs.lines() {
             let trimmed = line.trim();
@@ -175,6 +185,18 @@ Task title: {}"#,
                                                     let input = content_item
                                                         .get("input")
                                                         .unwrap_or(&Value::Null);
+
+                                                    // Store the tool_use_id mapping for later tool result processing
+                                                    if let Some(tool_use_id) = content_item
+                                                        .get("id")
+                                                        .and_then(|id| id.as_str())
+                                                    {
+                                                        tool_use_mapping.insert(
+                                                            tool_use_id.to_string(),
+                                                            (tool_name.to_string(), input.clone()),
+                                                        );
+                                                    }
+
                                                     let action_type = self.extract_action_type(
                                                         tool_name,
                                                         input,
@@ -210,11 +232,70 @@ Task title: {}"#,
                         if let Some(message) = json.get("message") {
                             if let Some(content) = message.get("content").and_then(|c| c.as_array())
                             {
+                                let mut found_tool_result = false;
                                 for content_item in content {
                                     if let Some(content_type) =
                                         content_item.get("type").and_then(|t| t.as_str())
                                     {
-                                        if content_type == "text" {
+                                        if content_type == "tool_result" {
+                                            if let Some(result_content) =
+                                                content_item.get("content").and_then(|c| c.as_str())
+                                            {
+                                                // Extract tool_use_id to determine which tool this result belongs to
+                                                let _tool_use_id = content_item
+                                                    .get("tool_use_id")
+                                                    .and_then(|id| id.as_str());
+
+                                                // Only process planning-related tool results
+                                                if result_content.contains("Plan approved") {
+                                                    let (tool_name, action_type, content) = (
+                                                        "exit_plan_mode".to_string(),
+                                                        ActionType::PlanApproved,
+                                                        "Plan Approved".to_string(),
+                                                    );
+
+                                                    entries.push(NormalizedEntry {
+                                                        timestamp: None,
+                                                        entry_type:
+                                                            NormalizedEntryType::ToolResult {
+                                                                tool_name: tool_name.clone(),
+                                                                action_type,
+                                                            },
+                                                        content,
+                                                        metadata: Some(content_item.clone()),
+                                                    });
+                                                    found_tool_result = true;
+                                                } else if result_content.contains("Plan rejected") {
+                                                    let feedback = result_content
+                                                        .strip_prefix("Plan rejected by user: ")
+                                                        .unwrap_or("Plan rejected")
+                                                        .to_string();
+                                                    let (tool_name, action_type, content) = (
+                                                        "exit_plan_mode".to_string(),
+                                                        ActionType::PlanRejected {
+                                                            feedback: feedback.clone(),
+                                                        },
+                                                        format!("Plan Rejected: {}", feedback),
+                                                    );
+
+                                                    entries.push(NormalizedEntry {
+                                                        timestamp: None,
+                                                        entry_type:
+                                                            NormalizedEntryType::ToolResult {
+                                                                tool_name: tool_name.clone(),
+                                                                action_type,
+                                                            },
+                                                        content,
+                                                        metadata: Some(content_item.clone()),
+                                                    });
+                                                    found_tool_result = true;
+                                                } else {
+                                                    // For non-planning tool results, just mark as found but don't add to entries
+                                                    // This effectively filters them out
+                                                    found_tool_result = true;
+                                                }
+                                            }
+                                        } else if content_type == "text" {
                                             if let Some(text) =
                                                 content_item.get("text").and_then(|t| t.as_str())
                                             {
@@ -227,6 +308,10 @@ Task title: {}"#,
                                             }
                                         }
                                     }
+                                }
+                                // If we found a tool result, continue processing
+                                if found_tool_result {
+                                    // Continue to next line
                                 }
                             }
                         }
@@ -256,12 +341,12 @@ Task title: {}"#,
                 false
             };
 
-            // If JSON didn't match expected patterns, add it as unrecognized JSON
+            // If JSON didn't match expected patterns, check for backend-generated entries
             // Skip JSON with type "result" as requested
             if !processed {
                 if let Some(msg_type) = json.get("type").and_then(|t| t.as_str()) {
                     if msg_type == "result" {
-                        // Skip result entries
+                        // Skip result entries (but handle tool_result separately)
                         continue;
                     }
                 }
@@ -277,7 +362,11 @@ Task title: {}"#,
         Ok(NormalizedConversation {
             entries,
             session_id,
-            executor_type: "claude".to_string(),
+            executor_type: if self.use_plan_mode {
+                "claudeplan".to_string()
+            } else {
+                "claude".to_string()
+            },
             prompt: None,
             summary: None,
         })
@@ -320,6 +409,11 @@ impl ClaudeExecutor {
             ActionType::Search { query } => format!("`{}`", query),
             ActionType::WebFetch { url } => format!("`{}`", url),
             ActionType::TaskCreate { description } => description.clone(),
+            ActionType::PlanPresentation { plan } => {
+                format!("Plan: {}", plan.lines().next().unwrap_or("")).to_string()
+            }
+            ActionType::PlanApproved => "Plan Approved".to_string(),
+            ActionType::PlanRejected { feedback } => format!("Plan Rejected: {}", feedback),
             ActionType::Other { description: _ } => {
                 // For other tools, try to extract key information or fall back to tool name
                 match tool_name.to_lowercase().as_str() {
@@ -490,6 +584,17 @@ impl ClaudeExecutor {
                     }
                 }
             }
+            "exit_plan_mode" => {
+                if let Some(plan) = input.get("plan").and_then(|p| p.as_str()) {
+                    ActionType::PlanPresentation {
+                        plan: plan.to_string(),
+                    }
+                } else {
+                    ActionType::Other {
+                        description: "Plan presentation".to_string(),
+                    }
+                }
+            }
             _ => ActionType::Other {
                 description: format!("Tool: {}", tool_name),
             },
@@ -508,10 +613,17 @@ impl Executor for ClaudeFollowupExecutor {
         // Use shell command for cross-platform compatibility
         let (shell_cmd, shell_arg) = get_shell_command();
         // Pass prompt via stdin instead of command line to avoid shell escaping issues
-        let claude_command = format!(
-            "npx -y @anthropic-ai/claude-code@latest -p --dangerously-skip-permissions --verbose --output-format=stream-json --resume={}",
-            self.session_id
-        );
+        let claude_command = if self.use_plan_mode {
+            format!(
+                "npx -y @anthropic-ai/claude-code@latest -p --permission-mode=plan --verbose --output-format=stream-json --resume={}",
+                self.session_id
+            )
+        } else {
+            format!(
+                "npx -y @anthropic-ai/claude-code@latest -p --dangerously-skip-permissions --verbose --output-format=stream-json --resume={}",
+                self.session_id
+            )
+        };
 
         let mut command = Command::new(shell_cmd);
         command
@@ -569,7 +681,9 @@ impl Executor for ClaudeFollowupExecutor {
         worktree_path: &str,
     ) -> Result<NormalizedConversation, String> {
         // Reuse the same logic as the main ClaudeExecutor
-        let main_executor = ClaudeExecutor;
+        let main_executor = ClaudeExecutor {
+            use_plan_mode: self.use_plan_mode,
+        };
         main_executor.normalize_logs(logs, worktree_path)
     }
 }
@@ -580,7 +694,9 @@ mod tests {
 
     #[test]
     fn test_normalize_logs_ignores_result_type() {
-        let executor = ClaudeExecutor;
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
         let logs = r#"{"type":"system","subtype":"init","cwd":"/private/tmp","session_id":"e988eeea-3712-46a1-82d4-84fbfaa69114","tools":[],"model":"claude-sonnet-4-20250514"}
 {"type":"assistant","message":{"id":"msg_123","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"text","text":"Hello world"}],"stop_reason":null},"session_id":"e988eeea-3712-46a1-82d4-84fbfaa69114"}
 {"type":"result","subtype":"success","is_error":false,"duration_ms":6059,"result":"Final result"}
@@ -606,7 +722,9 @@ mod tests {
 
     #[test]
     fn test_make_path_relative() {
-        let executor = ClaudeExecutor;
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
 
         // Test with relative path (should remain unchanged)
         assert_eq!(
@@ -623,7 +741,9 @@ mod tests {
 
     #[test]
     fn test_todo_tool_content_extraction() {
-        let executor = ClaudeExecutor;
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
 
         // Test TodoWrite with actual todo list
         let todo_input = serde_json::json!({
@@ -666,7 +786,9 @@ mod tests {
 
     #[test]
     fn test_todo_tool_empty_list() {
-        let executor = ClaudeExecutor;
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
 
         // Test TodoWrite with empty todo list
         let empty_input = serde_json::json!({
@@ -687,7 +809,9 @@ mod tests {
 
     #[test]
     fn test_todo_tool_no_todos_field() {
-        let executor = ClaudeExecutor;
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
 
         // Test TodoWrite with no todos field
         let no_todos_input = serde_json::json!({
@@ -708,7 +832,9 @@ mod tests {
 
     #[test]
     fn test_glob_tool_content_extraction() {
-        let executor = ClaudeExecutor;
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
 
         // Test Glob with pattern and path
         let glob_input = serde_json::json!({
@@ -730,7 +856,9 @@ mod tests {
 
     #[test]
     fn test_glob_tool_pattern_only() {
-        let executor = ClaudeExecutor;
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
 
         // Test Glob with pattern only
         let glob_input = serde_json::json!({
@@ -751,7 +879,9 @@ mod tests {
 
     #[test]
     fn test_ls_tool_content_extraction() {
-        let executor = ClaudeExecutor;
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
 
         // Test LS with path
         let ls_input = serde_json::json!({
@@ -768,5 +898,124 @@ mod tests {
         );
 
         assert_eq!(result, "List directory: `components`");
+    }
+
+    #[test]
+    fn test_tool_result_parsing_filtered() {
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
+
+        // Test with a log containing a non-planning tool result (should be filtered out)
+        let logs = r#"{"type":"system","subtype":"init","cwd":"/private/tmp","session_id":"test-session","tools":[],"model":"claude-sonnet-4-20250514"}
+{"type":"assistant","message":{"id":"msg_123","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"tool_use","id":"toolu_01H6wrxENgVvfBTKQc7onfhN","name":"Grep","input":{"pattern":"test"}}],"stop_reason":null},"session_id":"test-session"}
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01H6wrxENgVvfBTKQc7onfhN","type":"tool_result","content":"Found 5 files\n/tmp/file1.txt\n/tmp/file2.txt\n/tmp/file3.txt\n/tmp/file4.txt\n/tmp/file5.txt"}]},"session_id":"test-session"}"#;
+
+        let result = executor.normalize_logs(logs, "/tmp/test-worktree").unwrap();
+
+        // Should have system message and assistant tool use, but NO tool result (filtered out)
+        assert_eq!(result.entries.len(), 2);
+
+        // Check that no tool result entry exists (it was filtered out)
+        let tool_result_entry = result
+            .entries
+            .iter()
+            .find(|e| matches!(e.entry_type, NormalizedEntryType::ToolResult { .. }));
+        assert!(tool_result_entry.is_none());
+    }
+
+    #[test]
+    fn test_non_planning_tool_result_filtered() {
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
+
+        // Test with a log containing a non-planning tool result (should be filtered out)
+        let logs = r#"{"type":"system","subtype":"init","cwd":"/private/tmp","session_id":"test-session","tools":[],"model":"claude-sonnet-4-20250514"}
+{"type":"assistant","message":{"id":"msg_123","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"tool_use","id":"toolu_01H6wrxENgVvfBTKQc7onfhN","name":"Read","input":{"file_path":"/tmp/test.txt"}}],"stop_reason":null},"session_id":"test-session"}
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01H6wrxENgVvfBTKQc7onfhN","type":"tool_result","content":"This is file content\nLine 2\nLine 3"}]},"session_id":"test-session"}"#;
+
+        let result = executor.normalize_logs(logs, "/tmp/test-worktree").unwrap();
+
+        // Should have system message and assistant tool use, but NO tool result (filtered out)
+        assert_eq!(result.entries.len(), 2);
+
+        // Check that no tool result entry exists (it was filtered out)
+        let tool_result_entry = result
+            .entries
+            .iter()
+            .find(|e| matches!(e.entry_type, NormalizedEntryType::ToolResult { .. }));
+        assert!(tool_result_entry.is_none());
+    }
+
+    #[test]
+    fn test_planning_tool_results_not_filtered() {
+        let executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
+
+        // Test with plan approval - should NOT be filtered out
+        let logs_approved = r#"{"type":"system","subtype":"init","cwd":"/private/tmp","session_id":"test-session","tools":[],"model":"claude-sonnet-4-20250514"}
+{"type":"assistant","message":{"id":"msg_123","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"tool_use","id":"toolu_01H6wrxENgVvfBTKQc7onfhN","name":"exit_plan_mode","input":{"plan":"My plan"}}],"stop_reason":null},"session_id":"test-session"}
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01H6wrxENgVvfBTKQc7onfhN","type":"tool_result","content":"Plan approved"}]},"session_id":"test-session"}"#;
+
+        let result = executor
+            .normalize_logs(logs_approved, "/tmp/test-worktree")
+            .unwrap();
+
+        // Should have system message, assistant tool use, and tool result (not filtered)
+        assert_eq!(result.entries.len(), 3);
+
+        // Check that the tool result entry exists
+        let tool_result_entry = result
+            .entries
+            .iter()
+            .find(|e| matches!(e.entry_type, NormalizedEntryType::ToolResult { .. }));
+        assert!(tool_result_entry.is_some());
+
+        let tool_result = tool_result_entry.unwrap();
+        assert_eq!(tool_result.content, "Plan Approved");
+        if let NormalizedEntryType::ToolResult {
+            tool_name,
+            action_type,
+        } = &tool_result.entry_type
+        {
+            assert_eq!(tool_name, "exit_plan_mode");
+            assert!(matches!(action_type, ActionType::PlanApproved));
+        }
+
+        // Test with plan rejection - should NOT be filtered out
+        let logs_rejected = r#"{"type":"system","subtype":"init","cwd":"/private/tmp","session_id":"test-session","tools":[],"model":"claude-sonnet-4-20250514"}
+{"type":"assistant","message":{"id":"msg_123","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"tool_use","id":"toolu_01H6wrxENgVvfBTKQc7onfhN","name":"exit_plan_mode","input":{"plan":"My plan"}}],"stop_reason":null},"session_id":"test-session"}
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01H6wrxENgVvfBTKQc7onfhN","type":"tool_result","content":"Plan rejected by user: Not good enough"}]},"session_id":"test-session"}"#;
+
+        let result = executor
+            .normalize_logs(logs_rejected, "/tmp/test-worktree")
+            .unwrap();
+
+        // Should have system message, assistant tool use, and tool result (not filtered)
+        assert_eq!(result.entries.len(), 3);
+
+        // Check that the tool result entry exists
+        let tool_result_entry = result
+            .entries
+            .iter()
+            .find(|e| matches!(e.entry_type, NormalizedEntryType::ToolResult { .. }));
+        assert!(tool_result_entry.is_some());
+
+        let tool_result = tool_result_entry.unwrap();
+        assert_eq!(tool_result.content, "Plan Rejected: Not good enough");
+        if let NormalizedEntryType::ToolResult {
+            tool_name,
+            action_type,
+        } = &tool_result.entry_type
+        {
+            assert_eq!(tool_name, "exit_plan_mode");
+            if let ActionType::PlanRejected { feedback } = action_type {
+                assert_eq!(feedback, "Not good enough");
+            } else {
+                panic!("Expected PlanRejected action type");
+            }
+        }
     }
 }

@@ -22,7 +22,7 @@ export type SoundConstants = { sound_files: Array<SoundFile>, sound_labels: Arra
 
 export type ConfigConstants = { editor: EditorConstants, sound: SoundConstants, };
 
-export type ExecutorConfig = { "type": "echo" } | { "type": "claude" } | { "type": "amp" } | { "type": "gemini" } | { "type": "setupscript", script: string, } | { "type": "charmopencode" };
+export type ExecutorConfig = { "type": "echo" } | { "type": "claude" } | { "type": "claudeplan" } | { "type": "amp" } | { "type": "gemini" } | { "type": "setupscript", script: string, } | { "type": "charmopencode" };
 
 export type ExecutorConstants = { executor_types: Array<ExecutorConfig>, executor_labels: Array<string>, };
 
@@ -112,14 +112,15 @@ export type NormalizedConversation = { entries: Array<NormalizedEntry>, session_
 
 export type NormalizedEntry = { timestamp: string | null, entry_type: NormalizedEntryType, content: string, };
 
-export type NormalizedEntryType = { "type": "user_message" } | { "type": "assistant_message" } | { "type": "tool_use", tool_name: string, action_type: ActionType, } | { "type": "system_message" } | { "type": "error_message" } | { "type": "thinking" };
+export type NormalizedEntryType = { "type": "user_message" } | { "type": "assistant_message" } | { "type": "tool_use", tool_name: string, action_type: ActionType, } | { "type": "tool_result", tool_name: string, action_type: ActionType, } | { "type": "system_message" } | { "type": "error_message" } | { "type": "thinking" };
 
-export type ActionType = { "action": "file_read", path: string, } | { "action": "file_write", path: string, } | { "action": "command_run", command: string, } | { "action": "search", query: string, } | { "action": "web_fetch", url: string, } | { "action": "task_create", description: string, } | { "action": "other", description: string, };
+export type ActionType = { "action": "file_read", path: string, } | { "action": "file_write", path: string, } | { "action": "command_run", command: string, } | { "action": "search", query: string, } | { "action": "web_fetch", url: string, } | { "action": "task_create", description: string, } | { "action": "plan_presentation", plan: string, } | { "action": "plan_approved" } | { "action": "plan_rejected", feedback: string, } | { "action": "other", description: string, };
 
 // Generated constants
 export const EXECUTOR_TYPES: string[] = [
     "echo",
     "claude",
+    "claudeplan",
     "amp",
     "gemini",
     "charmopencode"
@@ -137,6 +138,7 @@ export const EDITOR_TYPES: EditorType[] = [
 export const EXECUTOR_LABELS: Record<string, string> = {
     "echo": "Echo (Test Mode)",
     "claude": "Claude",
+    "claudeplan": "Claude Plan",
     "amp": "Amp",
     "gemini": "Gemini",
     "charmopencode": "Charm Opencode"

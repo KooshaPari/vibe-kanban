@@ -48,6 +48,10 @@ pub enum NormalizedEntryType {
         tool_name: String,
         action_type: ActionType,
     },
+    ToolResult {
+        tool_name: String,
+        action_type: ActionType,
+    },
     SystemMessage,
     ErrorMessage,
     Thinking,
@@ -64,6 +68,9 @@ pub enum ActionType {
     Search { query: String },
     WebFetch { url: String },
     TaskCreate { description: String },
+    PlanPresentation { plan: String },
+    PlanApproved,
+    PlanRejected { feedback: String },
     Other { description: String },
 }
 
@@ -343,6 +350,7 @@ pub enum ExecutorType {
 pub enum ExecutorConfig {
     Echo,
     Claude,
+    ClaudePlan,
     Amp,
     Gemini,
     SetupScript { script: String },
@@ -367,6 +375,7 @@ impl FromStr for ExecutorConfig {
         match s {
             "echo" => Ok(ExecutorConfig::Echo),
             "claude" => Ok(ExecutorConfig::Claude),
+            "claudeplan" => Ok(ExecutorConfig::ClaudePlan),
             "amp" => Ok(ExecutorConfig::Amp),
             "gemini" => Ok(ExecutorConfig::Gemini),
             "charmopencode" => Ok(ExecutorConfig::CharmOpencode),
@@ -382,7 +391,12 @@ impl ExecutorConfig {
     pub fn create_executor(&self) -> Box<dyn Executor> {
         match self {
             ExecutorConfig::Echo => Box::new(EchoExecutor),
-            ExecutorConfig::Claude => Box::new(ClaudeExecutor),
+            ExecutorConfig::Claude => Box::new(ClaudeExecutor {
+                use_plan_mode: false,
+            }),
+            ExecutorConfig::ClaudePlan => Box::new(ClaudeExecutor {
+                use_plan_mode: true,
+            }),
             ExecutorConfig::Amp => Box::new(AmpExecutor),
             ExecutorConfig::Gemini => Box::new(GeminiExecutor),
             ExecutorConfig::CharmOpencode => Box::new(CharmOpencodeExecutor),
@@ -399,6 +413,7 @@ impl ExecutorConfig {
                 dirs::home_dir().map(|home| home.join(".opencode.json"))
             }
             ExecutorConfig::Claude => dirs::home_dir().map(|home| home.join(".claude.json")),
+            ExecutorConfig::ClaudePlan => dirs::home_dir().map(|home| home.join(".claude.json")),
             ExecutorConfig::Amp => {
                 dirs::config_dir().map(|config| config.join("amp").join("settings.json"))
             }
@@ -415,6 +430,7 @@ impl ExecutorConfig {
             ExecutorConfig::Echo => None, // Echo doesn't support MCP
             ExecutorConfig::CharmOpencode => Some(vec!["mcpServers"]),
             ExecutorConfig::Claude => Some(vec!["mcpServers"]),
+            ExecutorConfig::ClaudePlan => Some(vec!["mcpServers"]),
             ExecutorConfig::Amp => Some(vec!["amp", "mcpServers"]), // Nested path for Amp
             ExecutorConfig::Gemini => Some(vec!["mcpServers"]),
             ExecutorConfig::SetupScript { .. } => None, // Setup scripts don't support MCP
@@ -435,6 +451,7 @@ impl ExecutorConfig {
             ExecutorConfig::Echo => "Echo (Test Mode)",
             ExecutorConfig::CharmOpencode => "Charm Opencode",
             ExecutorConfig::Claude => "Claude",
+            ExecutorConfig::ClaudePlan => "Claude Plan",
             ExecutorConfig::Amp => "Amp",
             ExecutorConfig::Gemini => "Gemini",
             ExecutorConfig::SetupScript { .. } => "Setup Script",
@@ -447,6 +464,7 @@ impl std::fmt::Display for ExecutorConfig {
         let s = match self {
             ExecutorConfig::Echo => "echo",
             ExecutorConfig::Claude => "claude",
+            ExecutorConfig::ClaudePlan => "claudeplan",
             ExecutorConfig::Amp => "amp",
             ExecutorConfig::Gemini => "gemini",
             ExecutorConfig::CharmOpencode => "charmopencode",
@@ -905,7 +923,9 @@ mod tests {
 
     #[test]
     fn test_claude_log_normalization() {
-        let claude_executor = ClaudeExecutor;
+        let claude_executor = ClaudeExecutor {
+            use_plan_mode: false,
+        };
         let claude_logs = r#"{"type":"system","subtype":"init","cwd":"/private/tmp/mission-control-worktree-8ff34214-7bb4-4a5a-9f47-bfdf79e20368","session_id":"499dcce4-04aa-4a3e-9e0c-ea0228fa87c9","tools":["Task","Bash","Glob","Grep","LS","exit_plan_mode","Read","Edit","MultiEdit","Write","NotebookRead","NotebookEdit","WebFetch","TodoRead","TodoWrite","WebSearch"],"mcp_servers":[],"model":"claude-sonnet-4-20250514","permissionMode":"bypassPermissions","apiKeySource":"none"}
 {"type":"assistant","message":{"id":"msg_014xUHgkAhs6cRx5WVT3s7if","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"text","text":"I'll help you list your projects using vibe-kanban. Let me first explore the codebase to understand how vibe-kanban works and find your projects."}],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":4,"cache_creation_input_tokens":13497,"cache_read_input_tokens":0,"output_tokens":1,"service_tier":"standard"}},"parent_tool_use_id":null,"session_id":"499dcce4-04aa-4a3e-9e0c-ea0228fa87c9"}
 {"type":"assistant","message":{"id":"msg_014xUHgkAhs6cRx5WVT3s7if","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"tool_use","id":"toolu_01Br3TvXdmW6RPGpB5NihTHh","name":"Task","input":{"description":"Find vibe-kanban projects","prompt":"I need to find and list projects using vibe-kanban."}}],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":4,"cache_creation_input_tokens":13497,"cache_read_input_tokens":0,"output_tokens":1,"service_tier":"standard"}},"parent_tool_use_id":null,"session_id":"499dcce4-04aa-4a3e-9e0c-ea0228fa87c9"}"#;

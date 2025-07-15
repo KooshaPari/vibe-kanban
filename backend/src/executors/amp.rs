@@ -345,6 +345,9 @@ impl AmpExecutor {
             ActionType::CommandRun { command } => format!("`{}`", command),
             ActionType::Search { query } => format!("`{}`", query),
             ActionType::WebFetch { url } => format!("`{}`", url),
+            ActionType::PlanPresentation { plan } => format!("Plan Presentation: `{}`", plan),
+            ActionType::PlanApproved => "Plan Approved".to_string(),
+            ActionType::PlanRejected { feedback } => format!("Plan Rejected: `{}`", feedback),
             ActionType::TaskCreate { description } => description.clone(),
             ActionType::Other { description: _ } => {
                 // For other tools, try to extract key information or fall back to tool name

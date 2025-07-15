@@ -78,7 +78,14 @@ const getEntryIcon = (entryType: NormalizedEntryType) => {
     if (action_type.action === 'task_create') {
       return <Plus className="h-4 w-4 text-teal-600" />;
     }
+    if (action_type.action === 'plan_presentation') {
+      return <CheckSquare className="h-4 w-4 text-blue-600" />;
+    }
     return <Settings className="h-4 w-4 text-gray-600" />;
+  }
+  if (entryType.type === 'tool_result') {
+    // Show tool results as user messages since they represent user actions
+    return <User className="h-4 w-4 text-blue-600" />;
   }
   return <Settings className="h-4 w-4 text-gray-400" />;
 };

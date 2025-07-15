@@ -1,4 +1,8 @@
 import { NormalizedConversationViewer } from '@/components/tasks/TaskDetails/LogsTab/NormalizedConversationViewer.tsx';
+import type {
+  ExecutionProcess,
+  ExecutionProcessSummary,
+} from 'shared/types.ts';
 import {
   useCallback,
   useContext,
@@ -50,20 +54,21 @@ function Conversation() {
 
   const mainCodingAgentProcess = useMemo(() => {
     let mainCAProcess = Object.values(attemptData.runningProcessDetails).find(
-      (process) =>
+      (process: ExecutionProcess) =>
         process.process_type === 'codingagent' && process.command === 'executor'
     );
 
     if (!mainCAProcess) {
       const mainCodingAgentSummary = attemptData.processes.find(
-        (process) =>
+        (process: ExecutionProcessSummary) =>
           process.process_type === 'codingagent' &&
           process.command === 'executor'
       );
 
       if (mainCodingAgentSummary) {
         mainCAProcess = Object.values(attemptData.runningProcessDetails).find(
-          (process) => process.id === mainCodingAgentSummary.id
+          (process: ExecutionProcess) =>
+            process.id === mainCodingAgentSummary.id
         );
 
         if (!mainCAProcess) {
@@ -71,7 +76,7 @@ function Conversation() {
             ...mainCodingAgentSummary,
             stdout: null,
             stderr: null,
-          } as any;
+          } as ExecutionProcess;
         }
       }
     }
@@ -81,21 +86,21 @@ function Conversation() {
   const followUpProcesses = useMemo(() => {
     return attemptData.processes
       .filter(
-        (process) =>
+        (process: ExecutionProcessSummary) =>
           process.process_type === 'codingagent' &&
           process.command === 'followup_executor'
       )
-      .map((summary) => {
+      .map((summary: ExecutionProcessSummary) => {
         const detailedProcess = Object.values(
           attemptData.runningProcessDetails
-        ).find((process) => process.id === summary.id);
+        ).find((process: ExecutionProcess) => process.id === summary.id);
         return (
           detailedProcess ||
           ({
             ...summary,
             stdout: null,
             stderr: null,
-          } as any)
+          } as ExecutionProcess)
         );
       });
   }, [attemptData.processes, attemptData.runningProcessDetails]);
@@ -117,7 +122,7 @@ function Conversation() {
               />
             </div>
           )}
-          {followUpProcesses.map((followUpProcess) => (
+          {followUpProcesses.map((followUpProcess: ExecutionProcess) => (
             <div key={followUpProcess.id}>
               <div className="border-t border-border mb-8"></div>
               <NormalizedConversationViewer
