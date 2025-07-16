@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { FolderOpen, Plus, Settings } from 'lucide-react';
+import { FolderOpen, Plus, Settings, MessageSquare } from 'lucide-react';
 import { Loader } from '@/components/ui/loader';
 import { projectsApi, tasksApi } from '@/lib/api';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
@@ -320,6 +320,15 @@ export function ProjectTasks() {
               title="Open in IDE"
             >
               <FolderOpen className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/projects/${projectId}/manager`)}
+              className="h-8 w-8 p-0"
+              title="Project Manager"
+            >
+              <MessageSquare className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"

@@ -21,6 +21,7 @@ import {
   Clock,
   Edit,
   Loader2,
+  MessageSquare,
   Trash2,
 } from 'lucide-react';
 
@@ -141,6 +142,10 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
           <Button onClick={() => navigate(`/projects/${projectId}/tasks`)}>
             <CheckSquare className="mr-2 h-4 w-4" />
             View Tasks
+          </Button>
+          <Button variant="outline" onClick={() => navigate(`/projects/${projectId}/manager`)}>
+            <MessageSquare className="mr-2 h-4 w-4" />
+            Project Manager
           </Button>
           <Button variant="outline" onClick={() => setShowEditForm(true)}>
             <Edit className="mr-2 h-4 w-4" />

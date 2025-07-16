@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Navbar } from '@/components/layout/navbar';
 import { Projects } from '@/pages/projects';
 import { ProjectTasks } from '@/pages/project-tasks';
+import { ProjectManager } from '@/pages/project-manager';
 
 import { Settings } from '@/pages/Settings';
 import { McpServers } from '@/pages/McpServers';
@@ -163,6 +164,10 @@ function AppContent() {
             <Route
               path="/projects/:projectId/tasks/:taskId"
               element={<ProjectTasks />}
+            />
+            <Route
+              path="/projects/:projectId/manager"
+              element={<ProjectManager />}
             />
 
             <Route path="/settings" element={<Settings />} />
