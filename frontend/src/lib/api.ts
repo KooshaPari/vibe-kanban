@@ -4,6 +4,7 @@ import {
   Config,
   CreateFollowUpAttempt,
   CreateProject,
+  CreateProjectManagerSession,
   CreateTask,
   CreateTaskAndStart,
   CreateTaskAttempt,
@@ -13,9 +14,15 @@ import {
   ExecutionProcess,
   ExecutionProcessSummary,
   GitBranch,
+  MessageRole,
   NormalizedConversation,
   Project,
+  ProjectManagerMessage,
+  ProjectManagerSession,
+  ProjectManagerSessionWithMessages,
   ProjectWithBranch,
+  SendMessageRequest,
+  SendMessageResponse,
   Task,
   TaskAttempt,
   TaskAttemptActivityWithPrompt,
@@ -560,5 +567,65 @@ export const mcpServersApi = {
         response
       );
     }
+  },
+};
+
+// Project Manager APIs
+export const projectManagerApi = {
+  // Session management
+  getSessions: async (projectId: string): Promise<any[]> => {
+    const response = await makeRequest(`/api/projects/${projectId}/manager/sessions`);
+    return handleApiResponse<any[]>(response);
+  },
+
+  createSession: async (projectId: string, title: string): Promise<any> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/manager/sessions`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          project_id: projectId,
+          title,
+        }),
+      }
+    );
+    return handleApiResponse<any>(response);
+  },
+
+  getSession: async (projectId: string, sessionId: string): Promise<any> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/manager/sessions/${sessionId}`
+    );
+    return handleApiResponse<any>(response);
+  },
+
+  deleteSession: async (projectId: string, sessionId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/manager/sessions/${sessionId}`,
+      {
+        method: 'DELETE',
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+
+  // Message management
+  sendMessage: async (
+    projectId: string,
+    sessionId: string,
+    content: string,
+    metadata?: any
+  ): Promise<any> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/manager/sessions/${sessionId}/messages`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          content,
+          metadata,
+        }),
+      }
+    );
+    return handleApiResponse<any>(response);
   },
 };
