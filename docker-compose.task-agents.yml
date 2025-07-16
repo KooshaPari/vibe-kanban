@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  task-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.task-agent
+    volumes:
+      # Mount authentication configs (these should be created/updated by the host)
+      - ${HOME}/.claude.json:/root/.claude.json:ro
+      - ${HOME}/.config/gh:/root/.config/gh:ro
+      - ${HOME}/.gitconfig:/root/.gitconfig:ro
+      
+      # Mount other AI service configs if they exist
+      - ${HOME}/.config/amp:/root/.config/amp:ro
+      - ${HOME}/.gemini:/root/.gemini:ro
+      - ${HOME}/.opencode.json:/root/.opencode.json:ro
+      
+      # Mount project workspace (this will be dynamically set)
+      - ./workspace:/workspace:rw
+      
+      # Mount SSH keys for git operations
+      - ${HOME}/.ssh:/root/.ssh:ro
+      
+      # Mount npm cache for performance
+      - npm-cache:/root/.npm
+      
+    environment:
+      # Pass through environment variables
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - AMP_API_KEY=${AMP_API_KEY:-}
+      
+      # Development environment variables
+      - NODE_ENV=development
+      - TERM=xterm-256color
+      
+      # Playwright environment
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      
+    working_dir: /workspace
+    tty: true
+    stdin_open: true
+    
+    # Network mode to access host services if needed
+    network_mode: "host"
+    
+    # Resource limits to prevent runaway processes
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Read-only root filesystem for security (with tmpfs for writable areas)
+    read_only: false  # Set to true for production, false for development
+    tmpfs:
+      - /tmp
+      - /var/tmp
+
+volumes:
+  npm-cache:
+    driver: local

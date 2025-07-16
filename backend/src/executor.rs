@@ -7,7 +7,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::executors::{
-    AmpExecutor, CharmOpencodeExecutor, ClaudeExecutor, EchoExecutor, GeminiExecutor,
+    AmpExecutor, CharmOpencodeExecutor, ClaudeExecutor, DockerExecutor, EchoExecutor, GeminiExecutor,
     SetupScriptExecutor,
 };
 
@@ -349,7 +349,7 @@ pub enum ExecutorConfig {
     CharmOpencode,
     // Future executors can be added here
     // Shell { command: String },
-    // Docker { image: String, command: String },
+    Docker { image: String, command: String },
 }
 
 // Constants for frontend
@@ -373,6 +373,10 @@ impl FromStr for ExecutorConfig {
             "setup_script" => Ok(ExecutorConfig::SetupScript {
                 script: "setup script".to_string(),
             }),
+            "docker" => Ok(ExecutorConfig::Docker {
+                image: "task-agent:latest".to_string(),
+                command: "bash".to_string(),
+            }),
             _ => Err(format!("Unknown executor type: {}", s)),
         }
     }
@@ -388,6 +392,9 @@ impl ExecutorConfig {
             ExecutorConfig::CharmOpencode => Box::new(CharmOpencodeExecutor),
             ExecutorConfig::SetupScript { script } => {
                 Box::new(SetupScriptExecutor::new(script.clone()))
+            }
+            ExecutorConfig::Docker { image, command } => {
+                Box::new(DockerExecutor::new(image.clone(), command.clone()))
             }
         }
     }
@@ -406,6 +413,7 @@ impl ExecutorConfig {
                 dirs::home_dir().map(|home| home.join(".gemini").join("settings.json"))
             }
             ExecutorConfig::SetupScript { .. } => None,
+            ExecutorConfig::Docker { .. } => None, // Docker containers handle config internally
         }
     }
 
@@ -418,6 +426,7 @@ impl ExecutorConfig {
             ExecutorConfig::Amp => Some(vec!["amp", "mcpServers"]), // Nested path for Amp
             ExecutorConfig::Gemini => Some(vec!["mcpServers"]),
             ExecutorConfig::SetupScript { .. } => None, // Setup scripts don't support MCP
+            ExecutorConfig::Docker { .. } => Some(vec!["mcpServers"]), // Docker containers can support MCP
         }
     }
 
@@ -438,6 +447,7 @@ impl ExecutorConfig {
             ExecutorConfig::Amp => "Amp",
             ExecutorConfig::Gemini => "Gemini",
             ExecutorConfig::SetupScript { .. } => "Setup Script",
+            ExecutorConfig::Docker { .. } => "Docker Container",
         }
     }
 }
@@ -451,6 +461,7 @@ impl std::fmt::Display for ExecutorConfig {
             ExecutorConfig::Gemini => "gemini",
             ExecutorConfig::CharmOpencode => "charmopencode",
             ExecutorConfig::SetupScript { .. } => "setup_script",
+            ExecutorConfig::Docker { .. } => "docker",
         };
         write!(f, "{}", s)
     }
