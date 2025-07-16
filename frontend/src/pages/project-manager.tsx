@@ -4,19 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FolderOpen, MessageSquare, Plus, Settings, ArrowLeft } from 'lucide-react';
 import { Loader } from '@/components/ui/loader';
-import { projectsApi } from '@/lib/api';
+import { projectsApi, projectManagerApi } from '@/lib/api';
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts';
 import { FileSearchTextarea } from '@/components/ui/file-search-textarea';
 import { Send } from 'lucide-react';
 import MarkdownRenderer from '@/components/ui/markdown-renderer';
 import type { ProjectWithBranch } from 'shared/types';
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-}
 
 export function ProjectManager() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -24,7 +17,8 @@ export function ProjectManager() {
   const [project, setProject] = useState<ProjectWithBranch | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [currentSession, setCurrentSession] = useState<any | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
@@ -40,33 +34,45 @@ export function ProjectManager() {
   useEffect(() => {
     if (projectId) {
       fetchProject();
-      // Initialize with welcome message
-      setMessages([
-        {
-          id: '1',
-          role: 'assistant',
-          content: `Hello! I'm your project manager agent. I can help you manage this project in various ways:
-
-- **Task Management**: Create, organize, and track tasks
-- **PRD Analysis**: Review and discuss project requirements documents
-- **Worker Coordination**: Manage and assign work to different agents
-- **Project Planning**: Help plan features and milestones
-- **Code Review**: Coordinate code reviews and quality checks
-
-What would you like to work on today?`,
-          timestamp: new Date(),
-        },
-      ]);
+      initializeSession();
     }
   }, [projectId]);
 
   const fetchProject = useCallback(async () => {
     try {
-      setLoading(true);
       const result = await projectsApi.getWithBranch(projectId!);
       setProject(result);
     } catch (err) {
       setError('Failed to load project');
+    }
+  }, [projectId]);
+
+  const initializeSession = useCallback(async () => {
+    try {
+      setLoading(true);
+      // Try to get existing sessions
+      const sessions = await projectManagerApi.getSessions(projectId!);
+      
+      let session;
+      if (sessions.length > 0) {
+        // Use the most recent session
+        session = sessions[0];
+      } else {
+        // Create a new session
+        session = await projectManagerApi.createSession(
+          projectId!,
+          'Project Manager Chat'
+        );
+      }
+
+      setCurrentSession(session);
+
+      // Load the session with messages
+      const sessionData = await projectManagerApi.getSession(projectId!, session.id);
+      setMessages(sessionData.messages || []);
+    } catch (err) {
+      console.error('Failed to initialize session:', err);
+      setError('Failed to initialize chat session');
     } finally {
       setLoading(false);
     }
@@ -88,40 +94,30 @@ What would you like to work on today?`,
   }, [projectId, navigate]);
 
   const handleSendMessage = useCallback(async () => {
-    if (!inputMessage.trim() || isTyping) return;
+    if (!inputMessage.trim() || isTyping || !currentSession) return;
 
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: inputMessage.trim(),
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    const messageContent = inputMessage.trim();
     setInputMessage('');
     setIsTyping(true);
 
-    // Simulate AI response (in real implementation, this would call your agent API)
-    setTimeout(() => {
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `I understand you want to: "${userMessage.content}"
+    try {
+      const response = await projectManagerApi.sendMessage(
+        projectId!,
+        currentSession.id,
+        messageContent
+      );
 
-Let me help you with that. Here are some actions I can take:
-
-1. **Create Tasks**: I can break this down into specific tasks and create them in your kanban board
-2. **Generate PRD**: I can help create or refine project requirements documents
-3. **Assign Workers**: I can recommend which agents or team members should handle different parts
-4. **Plan Implementation**: I can suggest an implementation approach and timeline
-
-Would you like me to proceed with any of these actions? Or would you prefer to discuss the requirements in more detail first?`,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, assistantMessage]);
+      // Add both user and assistant messages to the UI
+      setMessages(prev => [...prev, response.user_message, response.assistant_message]);
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      setError('Failed to send message. Please try again.');
+      // Restore the input message
+      setInputMessage(messageContent);
+    } finally {
       setIsTyping(false);
-    }, 1500);
-  }, [inputMessage, isTyping]);
+    }
+  }, [inputMessage, isTyping, currentSession, projectId]);
 
   if (loading) {
     return <Loader message="Loading project manager..." size={32} className="py-8" />;
@@ -194,7 +190,7 @@ Would you like me to proceed with any of these actions? Or would you prefer to d
                 <span className="font-medium">
                   {message.role === 'user' ? 'You' : 'Project Manager'}
                 </span>
-                <span>{message.timestamp.toLocaleTimeString()}</span>
+                <span>{new Date(message.created_at).toLocaleTimeString()}</span>
               </div>
               <Card className={message.role === 'user' ? 'ml-8' : 'mr-8'}>
                 <CardContent className="p-4">
