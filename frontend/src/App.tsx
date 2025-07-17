@@ -6,6 +6,7 @@ import { ProjectTasks } from '@/pages/project-tasks';
 
 import { Settings } from '@/pages/Settings';
 import { McpServers } from '@/pages/McpServers';
+import { Integrations } from '@/pages/Integrations';
 import { DisclaimerDialog } from '@/components/DisclaimerDialog';
 import { OnboardingDialog } from '@/components/OnboardingDialog';
 import { PrivacyOptInDialog } from '@/components/PrivacyOptInDialog';
@@ -16,6 +17,12 @@ import { configApi } from '@/lib/api';
 import * as Sentry from '@sentry/react';
 import { Loader } from '@/components/ui/loader';
 import { GitHubLoginDialog } from '@/components/GitHubLoginDialog';
+import { initializeDesktop, isDesktop } from '@/lib/desktop-api';
+import { useBackendConnection } from '@/hooks/useBackendConnection';
+import { LoadingScreen } from '@/components/desktop/LoadingScreen';
+import { DesktopLayout } from '@/components/desktop/DesktopLayout';
+import { useDesktopShortcuts } from '@/hooks/useDesktopShortcuts';
+import { useDesktopDetection } from '@/hooks/useDesktopDetection';
 
 const SentryRoutes = Sentry.withSentryReactRouterV6Routing(Routes);
 
@@ -26,6 +33,17 @@ function AppContent() {
   const [showPrivacyOptIn, setShowPrivacyOptIn] = useState(false);
   const [showGitHubLogin, setShowGitHubLogin] = useState(false);
   const showNavbar = true;
+  const { isConnected, isLoading, error, retry } = useBackendConnection();
+  const { isDesktopEnv, isReady } = useDesktopDetection();
+  
+  // Initialize desktop shortcuts
+  useDesktopShortcuts();
+  
+  // Debug logging (development only)
+  if (import.meta.env.DEV) {
+    console.log('🚀 App render - Desktop detection:', { isDesktopEnv, isReady });
+    console.log('🔗 App render - Backend connection:', { isConnected, isLoading, error });
+  }
 
   useEffect(() => {
     if (config) {
@@ -42,6 +60,13 @@ function AppContent() {
       }
     }
   }, [config]);
+
+  // Initialize desktop features
+  useEffect(() => {
+    if (isDesktop()) {
+      initializeDesktop().catch(console.error);
+    }
+  }, []);
 
   const handleDisclaimerAccept = async () => {
     if (!config) return;
@@ -131,9 +156,19 @@ function AppContent() {
     );
   }
 
+  // Show loading screen only for desktop with actual connection issues
+  if (isDesktopEnv && isReady && !isConnected && error) {
+    return (
+      <LoadingScreen 
+        status={{ isConnected, isLoading, error, lastChecked: null }}
+        onRetry={retry}
+      />
+    );
+  }
+
   return (
     <ThemeProvider initialTheme={config?.theme || 'system'}>
-      <div className="h-screen flex flex-col bg-background">
+      <div className={isDesktopEnv ? "h-screen bg-background" : "h-screen flex flex-col bg-background"}>
         <GitHubLoginDialog
           open={showGitHubLogin}
           onOpenChange={handleGitHubLoginComplete}
@@ -150,25 +185,28 @@ function AppContent() {
           open={showPrivacyOptIn}
           onComplete={handlePrivacyOptInComplete}
         />
-        {showNavbar && <Navbar />}
-        <div className="flex-1 overflow-y-scroll">
-          <SentryRoutes>
-            <Route path="/" element={<Projects />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/projects/:projectId" element={<Projects />} />
-            <Route
-              path="/projects/:projectId/tasks"
-              element={<ProjectTasks />}
-            />
-            <Route
-              path="/projects/:projectId/tasks/:taskId"
-              element={<ProjectTasks />}
-            />
+        <DesktopLayout>
+          {!isDesktopEnv && showNavbar && <Navbar />}
+          <div className={isDesktopEnv ? "h-full" : "flex-1 overflow-y-scroll"}>
+            <SentryRoutes>
+              <Route path="/" element={<Projects />} />
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/projects/:projectId" element={<Projects />} />
+              <Route
+                path="/projects/:projectId/tasks"
+                element={<ProjectTasks />}
+              />
+              <Route
+                path="/projects/:projectId/tasks/:taskId"
+                element={<ProjectTasks />}
+              />
 
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/mcp-servers" element={<McpServers />} />
-          </SentryRoutes>
-        </div>
+              <Route path="/integrations" element={<Integrations />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/mcp-servers" element={<McpServers />} />
+            </SentryRoutes>
+          </div>
+        </DesktopLayout>
       </div>
     </ThemeProvider>
   );
