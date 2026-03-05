@@ -52,15 +52,24 @@ export function TaskCard({
           <div className="flex items-center space-x-1">
             {/* In Progress Spinner */}
             {task.has_in_progress_attempt && (
-              <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+              <Loader2 
+                data-testid="in-progress-spinner"
+                className="h-3 w-3 animate-spin text-blue-500" 
+              />
             )}
             {/* Merged Indicator */}
             {task.has_merged_attempt && (
-              <CheckCircle className="h-3 w-3 text-green-500" />
+              <CheckCircle 
+                data-testid="merged-indicator"
+                className="h-3 w-3 text-green-500" 
+              />
             )}
             {/* Failed Indicator */}
             {task.has_failed_attempt && !task.has_merged_attempt && (
-              <XCircle className="h-3 w-3 text-red-500" />
+              <XCircle 
+                data-testid="failed-indicator"
+                className="h-3 w-3 text-red-500" 
+              />
             )}
             {/* Actions Menu */}
             <div
