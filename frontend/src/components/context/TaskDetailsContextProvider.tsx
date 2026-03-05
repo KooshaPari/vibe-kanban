@@ -22,6 +22,7 @@ import {
   TaskAttemptDataContext,
   TaskAttemptLoadingContext,
   TaskAttemptStoppingContext,
+  TaskAttemptsContext,
   TaskBackgroundRefreshContext,
   TaskDeletingFilesContext,
   TaskDetailsContext,
@@ -35,8 +36,8 @@ const TaskDetailsProvider: FC<{
   task: TaskWithAttemptStatus;
   projectId: string;
   children: ReactNode;
-  activeTab: 'logs' | 'diffs';
-  setActiveTab: Dispatch<SetStateAction<'logs' | 'diffs'>>;
+  activeTab: 'logs' | 'diffs' | 'visualizations';
+  setActiveTab: Dispatch<SetStateAction<'logs' | 'diffs' | 'visualizations'>>;
   setShowEditorDialog: Dispatch<SetStateAction<boolean>>;
   userSelectedTab: boolean;
   projectHasDevScript?: boolean;
@@ -73,6 +74,8 @@ const TaskDetailsProvider: FC<{
     processes: [],
     runningProcessDetails: {},
   });
+
+  const [taskAttempts, setTaskAttempts] = useState<TaskAttempt[]>([]);
 
   const diffLoadingRef = useRef(false);
 
@@ -400,6 +403,14 @@ const TaskDetailsProvider: FC<{
     [executionState, fetchExecutionState]
   );
 
+  const taskAttemptsValue = useMemo(
+    () => ({
+      taskAttempts,
+      setTaskAttempts,
+    }),
+    [taskAttempts]
+  );
+
   return (
     <TaskDetailsContext.Provider value={value}>
       <TaskAttemptLoadingContext.Provider value={taskAttemptLoadingValue}>
@@ -414,7 +425,9 @@ const TaskDetailsProvider: FC<{
                     <TaskBackgroundRefreshContext.Provider
                       value={backgroundRefreshingValue}
                     >
-                      {children}
+                      <TaskAttemptsContext.Provider value={taskAttemptsValue}>
+                        {children}
+                      </TaskAttemptsContext.Provider>
                     </TaskBackgroundRefreshContext.Provider>
                   </TaskExecutionStateContext.Provider>
                 </TaskAttemptDataContext.Provider>

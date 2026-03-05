@@ -1,0 +1,125 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#f8fafc"/>
+  
+  <!-- Header -->
+  <rect x="0" y="0" width="1200" height="60" fill="#1e293b"/>
+  <text x="20" y="35" fill="white" font-family="system-ui" font-size="18" font-weight="600">Vibe Kanban - Visual Graphs Demo</text>
+  
+  <!-- Tab Navigation -->
+  <rect x="20" y="80" width="1160" height="40" fill="#f1f5f9" rx="4"/>
+  <rect x="30" y="85" width="80" height="30" fill="#cbd5e1" rx="4"/>
+  <text x="70" y="103" text-anchor="middle" fill="#475569" font-family="system-ui" font-size="14">Logs</text>
+  <rect x="120" y="85" width="80" height="30" fill="#cbd5e1" rx="4"/>
+  <text x="160" y="103" text-anchor="middle" fill="#475569" font-family="system-ui" font-size="14">Diffs</text>
+  <rect x="210" y="85" width="120" height="30" fill="#3b82f6" rx="4"/>
+  <text x="270" y="103" text-anchor="middle" fill="white" font-family="system-ui" font-size="14" font-weight="600">Visualizations</text>
+  
+  <!-- Agent Progress Race Section -->
+  <rect x="20" y="140" width="1160" height="300" fill="white" rx="8" stroke="#e2e8f0" stroke-width="1"/>
+  <rect x="30" y="150" width="1140" height="40" fill="linear-gradient(135deg, #dbeafe 0%, #f0f9ff 100%)" rx="4"/>
+  <text x="50" y="173" fill="#1e40af" font-family="system-ui" font-size="16" font-weight="600">🏁 Agent Progress Race</text>
+  <text x="300" y="173" fill="#64748b" font-family="system-ui" font-size="14">Track agents from start to finish line</text>
+  
+  <!-- Race Track -->
+  <rect x="50" y="210" width="1100" height="20" fill="#e2e8f0" rx="10"/>
+  
+  <!-- Progress markers -->
+  <line x1="50" y1="205" x2="50" y2="235" stroke="#94a3b8" stroke-width="2"/>
+  <text x="50" y="250" text-anchor="middle" fill="#64748b" font-family="system-ui" font-size="12">Start</text>
+  
+  <line x1="325" y1="205" x2="325" y2="235" stroke="#94a3b8" stroke-width="2"/>
+  <text x="325" y="250" text-anchor="middle" fill="#64748b" font-family="system-ui" font-size="12">Setup</text>
+  
+  <line x1="600" y1="205" x2="600" y2="235" stroke="#94a3b8" stroke-width="2"/>
+  <text x="600" y="250" text-anchor="middle" fill="#64748b" font-family="system-ui" font-size="12">Setup ✓</text>
+  
+  <line x1="875" y1="205" x2="875" y2="235" stroke="#94a3b8" stroke-width="2"/>
+  <text x="875" y="250" text-anchor="middle" fill="#64748b" font-family="system-ui" font-size="12">Coding</text>
+  
+  <line x1="1150" y1="205" x2="1150" y2="235" stroke="#94a3b8" stroke-width="2"/>
+  <text x="1150" y="250" text-anchor="middle" fill="#64748b" font-family="system-ui" font-size="12">Finish</text>
+  <text x="1140" y="205" font-size="20">🏁</text>
+  
+  <!-- Agent Lane 1 - Claude (85% complete) -->
+  <rect x="50" y="270" width="1100" height="30" fill="#f1f5f9" rx="15"/>
+  <rect x="50" y="270" width="935" height="30" fill="#10b981" rx="15"/>
+  <circle cx="985" cy="285" r="12" fill="white" stroke="#10b981" stroke-width="2"/>
+  <text x="985" y="290" text-anchor="middle" font-size="16">🧠</text>
+  <text x="70" y="320" fill="#374151" font-family="system-ui" font-size="14" font-weight="500">Claude</text>
+  <text x="150" y="320" fill="#6b7280" font-family="system-ui" font-size="12">feature/user-auth</text>
+  <text x="1070" y="290" fill="#6b7280" font-family="system-ui" font-size="12">85%</text>
+  
+  <!-- Agent Lane 2 - Amp (60% complete, running) -->
+  <rect x="50" y="310" width="1100" height="30" fill="#f1f5f9" rx="15"/>
+  <rect x="50" y="310" width="660" height="30" fill="#3b82f6" rx="15"/>
+  <circle cx="710" cy="325" r="12" fill="white" stroke="#3b82f6" stroke-width="2" class="animate-pulse"/>
+  <text x="710" y="330" text-anchor="middle" font-size="16">⚡</text>
+  <text x="70" y="360" fill="#374151" font-family="system-ui" font-size="14" font-weight="500">Amp</text>
+  <text x="150" y="360" fill="#6b7280" font-family="system-ui" font-size="12">feature/api-endpoints</text>
+  <text x="1070" y="330" fill="#6b7280" font-family="system-ui" font-size="12">60%</text>
+  
+  <!-- Agent Lane 3 - Gemini (40% complete, failed) -->
+  <rect x="50" y="350" width="1100" height="30" fill="#f1f5f9" rx="15"/>
+  <rect x="50" y="350" width="440" height="30" fill="#ef4444" rx="15"/>
+  <circle cx="490" cy="365" r="12" fill="white" stroke="#ef4444" stroke-width="2"/>
+  <text x="490" y="370" text-anchor="middle" font-size="16">💎</text>
+  <text x="70" y="400" fill="#374151" font-family="system-ui" font-size="14" font-weight="500">Gemini</text>
+  <text x="150" y="400" fill="#6b7280" font-family="system-ui" font-size="12">feature/ui-components</text>
+  <text x="1070" y="370" fill="#6b7280" font-family="system-ui" font-size="12">40%</text>
+  
+  <!-- Git State Tree Section -->
+  <rect x="20" y="460" width="1160" height="320" fill="white" rx="8" stroke="#e2e8f0" stroke-width="1"/>
+  <rect x="30" y="470" width="1140" height="40" fill="linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%)" rx="4"/>
+  <text x="50" y="493" fill="#166534" font-family="system-ui" font-size="16" font-weight="600">🌳 Git State Tree</text>
+  <text x="250" y="493" fill="#64748b" font-family="system-ui" font-size="14">Visualize branching, PRs, and merges</text>
+  
+  <!-- Git Tree Visualization -->
+  <rect x="50" y="530" width="1100" height="220" fill="#fafafa" rx="4" stroke="#e5e7eb"/>
+  
+  <!-- Main branch line -->
+  <line x1="100" y1="580" x2="1000" y2="580" stroke="#6b7280" stroke-width="3"/>
+  <text x="80" y="585" fill="#374151" font-family="system-ui" font-size="12" font-weight="500">main</text>
+  
+  <!-- Branch 1: feature/user-auth -->
+  <circle cx="200" cy="580" r="8" fill="#3b82f6"/>
+  <line x1="200" y1="580" x2="400" y2="620" stroke="#3b82f6" stroke-width="2" stroke-dasharray="5,5"/>
+  <circle cx="400" cy="620" r="8" fill="#10b981"/>
+  <text x="410" y="625" fill="#374151" font-family="system-ui" font-size="11">feature/user-auth</text>
+  <circle cx="500" cy="620" r="6" fill="#f59e0b"/>
+  <text x="500" y="635" text-anchor="middle" font-size="10">PR</text>
+  <line x1="500" y1="620" x2="600" y2="580" stroke="#10b981" stroke-width="2"/>
+  <circle cx="600" cy="580" r="8" fill="#10b981"/>
+  
+  <!-- Branch 2: feature/api-endpoints -->
+  <circle cx="300" cy="580" r="8" fill="#3b82f6"/>
+  <line x1="300" y1="580" x2="500" y2="650" stroke="#3b82f6" stroke-width="2" stroke-dasharray="5,5"/>
+  <circle cx="500" cy="650" r="8" fill="#3b82f6" class="animate-pulse"/>
+  <text x="510" y="655" fill="#374151" font-family="system-ui" font-size="11">feature/api-endpoints</text>
+  
+  <!-- Branch 3: feature/ui-components -->
+  <circle cx="400" cy="580" r="8" fill="#3b82f6"/>
+  <line x1="400" y1="580" x2="600" y2="680" stroke="#ef4444" stroke-width="2" stroke-dasharray="5,5"/>
+  <circle cx="600" cy="680" r="8" fill="#ef4444"/>
+  <text x="610" y="685" fill="#374151" font-family="system-ui" font-size="11">feature/ui-components</text>
+  
+  <!-- Legend -->
+  <rect x="800" y="540" width="300" height="100" fill="white" rx="4" stroke="#e5e7eb"/>
+  <text x="820" y="560" fill="#374151" font-family="system-ui" font-size="12" font-weight="600">Legend</text>
+  
+  <circle cx="830" cy="575" r="6" fill="#3b82f6"/>
+  <text x="845" y="580" fill="#374151" font-family="system-ui" font-size="11">Branch</text>
+  
+  <circle cx="830" cy="595" r="6" fill="#f59e0b"/>
+  <text x="845" y="600" fill="#374151" font-family="system-ui" font-size="11">Pull Request</text>
+  
+  <circle cx="830" cy="615" r="6" fill="#10b981"/>
+  <text x="845" y="620" fill="#374151" font-family="system-ui" font-size="11">Merged</text>
+  
+  <line x1="950" y1="575" x2="980" y2="575" stroke="#3b82f6" stroke-width="2" stroke-dasharray="3,3"/>
+  <text x="990" y="580" fill="#374151" font-family="system-ui" font-size="11">Branch connection</text>
+  
+  <!-- Status indicators at bottom -->
+  <rect x="20" y="750" width="1160" height="30" fill="#f8fafc"/>
+  <text x="30" y="770" fill="#6b7280" font-family="system-ui" font-size="12">Status: Real-time updates every 2 seconds • 3 active agents • 2 completed tasks • 1 failed task</text>
+</svg>

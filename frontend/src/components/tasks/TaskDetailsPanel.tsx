@@ -9,6 +9,7 @@ import {
 import type { TaskWithAttemptStatus } from 'shared/types';
 import DiffTab from '@/components/tasks/TaskDetails/DiffTab.tsx';
 import LogsTab from '@/components/tasks/TaskDetails/LogsTab.tsx';
+import { VisualizationsTab } from '@/components/tasks/TaskDetails/VisualizationsTab.tsx';
 import DeleteFileConfirmationDialog from '@/components/tasks/DeleteFileConfirmationDialog.tsx';
 import TabNavigation from '@/components/tasks/TaskDetails/TabNavigation.tsx';
 import CollapsibleToolbar from '@/components/tasks/TaskDetails/CollapsibleToolbar.tsx';
@@ -36,7 +37,7 @@ export function TaskDetailsPanel({
   const [showEditorDialog, setShowEditorDialog] = useState(false);
 
   // Tab and collapsible state
-  const [activeTab, setActiveTab] = useState<'logs' | 'diffs'>('logs');
+  const [activeTab, setActiveTab] = useState<'logs' | 'diffs' | 'visualizations'>('logs');
   const [userSelectedTab, setUserSelectedTab] = useState<boolean>(false);
 
   // Reset to logs tab when task changes
@@ -97,9 +98,15 @@ export function TaskDetailsPanel({
 
               {/* Tab Content */}
               <div
-                className={`flex-1 flex flex-col min-h-0 ${activeTab === 'logs' ? 'p-4' : 'pt-4'}`}
+                className={`flex-1 flex flex-col min-h-0 ${activeTab === 'logs' ? 'p-4' : activeTab === 'visualizations' ? '' : 'pt-4'}`}
               >
-                {activeTab === 'diffs' ? <DiffTab /> : <LogsTab />}
+                {activeTab === 'diffs' ? (
+                  <DiffTab />
+                ) : activeTab === 'visualizations' ? (
+                  <VisualizationsTab />
+                ) : (
+                  <LogsTab />
+                )}
               </div>
 
               <TaskFollowUpSection />
