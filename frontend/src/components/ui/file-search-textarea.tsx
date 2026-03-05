@@ -9,6 +9,7 @@ interface FileSearchResult {
 }
 
 interface FileSearchTextareaProps {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -21,6 +22,7 @@ interface FileSearchTextareaProps {
 }
 
 export function FileSearchTextarea({
+  id,
   value,
   onChange,
   placeholder,
@@ -233,6 +235,7 @@ export function FileSearchTextarea({
       className={`relative ${className?.includes('flex-1') ? 'flex-1' : ''}`}
     >
       <AutoExpandingTextarea
+        id={id}
         ref={textareaRef}
         value={value}
         onChange={handleChange}

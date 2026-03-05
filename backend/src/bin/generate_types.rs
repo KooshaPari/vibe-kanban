@@ -8,9 +8,12 @@ fn generate_constants() -> String {
 export const EXECUTOR_TYPES: string[] = [
     "echo",
     "claude",
+    "claude-plan",
     "amp",
     "gemini",
-    "charmopencode"
+    "charm-opencode",
+    "claude-code-router",
+    "sst-opencode"
 ];
 
 export const EDITOR_TYPES: EditorType[] = [
@@ -25,9 +28,12 @@ export const EDITOR_TYPES: EditorType[] = [
 export const EXECUTOR_LABELS: Record<string, string> = {
     "echo": "Echo (Test Mode)",
     "claude": "Claude",
+    "claude-plan": "Claude Plan",
     "amp": "Amp",
     "gemini": "Gemini",
-    "charmopencode": "Charm Opencode"
+    "charm-opencode": "Charm Opencode",
+    "claude-code-router": "Claude Code Router",
+    "sst-opencode": "SST Opencode"
 };
 
 export const EDITOR_LABELS: Record<string, string> = {
@@ -96,17 +102,18 @@ fn generate_types_content() -> String {
         vibe_kanban::models::task::Task::decl(),
         vibe_kanban::models::task::TaskWithAttemptStatus::decl(),
         vibe_kanban::models::task::UpdateTask::decl(),
+        vibe_kanban::models::task_template::TaskTemplate::decl(),
+        vibe_kanban::models::task_template::CreateTaskTemplate::decl(),
+        vibe_kanban::models::task_template::UpdateTaskTemplate::decl(),
         vibe_kanban::models::task_attempt::TaskAttemptStatus::decl(),
         vibe_kanban::models::task_attempt::TaskAttempt::decl(),
         vibe_kanban::models::task_attempt::CreateTaskAttempt::decl(),
         vibe_kanban::models::task_attempt::UpdateTaskAttempt::decl(),
         vibe_kanban::models::task_attempt::CreateFollowUpAttempt::decl(),
-        vibe_kanban::models::task_attempt_activity::TaskAttemptActivity::decl(),
-        vibe_kanban::models::task_attempt_activity::TaskAttemptActivityWithPrompt::decl(),
-        vibe_kanban::models::task_attempt_activity::CreateTaskAttemptActivity::decl(),
         vibe_kanban::routes::filesystem::DirectoryEntry::decl(),
         vibe_kanban::routes::filesystem::DirectoryListResponse::decl(),
         vibe_kanban::routes::auth::DeviceStartResponse::decl(),
+        vibe_kanban::routes::task_attempts::ProcessLogsResponse::decl(),
         vibe_kanban::models::task_attempt::DiffChunkType::decl(),
         vibe_kanban::models::task_attempt::DiffChunk::decl(),
         vibe_kanban::models::task_attempt::FileDiff::decl(),

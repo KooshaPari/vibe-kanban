@@ -6,7 +6,6 @@ import {
   BookOpen,
   Server,
   MessageCircleQuestion,
-  Puzzle,
 } from 'lucide-react';
 import { Logo } from '@/components/logo';
 
@@ -30,18 +29,6 @@ export function Navbar() {
                 <Link to="/projects">
                   <FolderOpen className="mr-2 h-4 w-4" />
                   Projects
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant={
-                  location.pathname === '/integrations' ? 'default' : 'ghost'
-                }
-                size="sm"
-              >
-                <Link to="/integrations">
-                  <Puzzle className="mr-2 h-4 w-4" />
-                  Integrations
                 </Link>
               </Button>
               <Button
