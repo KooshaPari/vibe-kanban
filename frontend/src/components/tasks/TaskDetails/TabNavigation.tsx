@@ -1,10 +1,10 @@
-import { GitCompare, MessageSquare, BarChart3 } from 'lucide-react';
+import { GitCompare, MessageSquare } from 'lucide-react';
 import { useContext } from 'react';
 import { TaskDiffContext } from '@/components/context/taskDetailsContext.ts';
 
 type Props = {
-  activeTab: 'logs' | 'diffs' | 'visualizations';
-  setActiveTab: (tab: 'logs' | 'diffs' | 'visualizations') => void;
+  activeTab: 'logs' | 'diffs';
+  setActiveTab: (tab: 'logs' | 'diffs') => void;
   setUserSelectedTab: (tab: boolean) => void;
 };
 
@@ -47,21 +47,6 @@ function TabNavigation({ activeTab, setActiveTab, setUserSelectedTab }: Props) {
               {diff.files.length}
             </span>
           )}
-        </button>
-        <button
-          onClick={() => {
-            console.log('Visualizations tab clicked - setting activeTab to visualizations');
-            setActiveTab('visualizations');
-            setUserSelectedTab(true);
-          }}
-          className={`flex items-center px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'visualizations'
-              ? 'border-primary text-primary bg-background'
-              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          <BarChart3 className="h-4 w-4 mr-2" />
-          Visualizations
         </button>
       </div>
     </div>

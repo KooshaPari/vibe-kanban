@@ -81,14 +81,7 @@ export function OnboardingDialog({ open, onComplete }: OnboardingDialogProps) {
                 <Label htmlFor="executor">Default Executor</Label>
                 <Select
                   value={executor.type}
-                  onValueChange={(value) => {
-                    const type = value as ExecutorConfig['type'];
-                    if (type === 'setupscript') {
-                      setExecutor({ type: 'setupscript', script: '' });
-                    } else {
-                      setExecutor({ type } as ExecutorConfig);
-                    }
-                  }}
+                  onValueChange={(value) => setExecutor({ type: value as any })}
                 >
                   <SelectTrigger id="executor">
                     <SelectValue placeholder="Select your preferred coding agent" />

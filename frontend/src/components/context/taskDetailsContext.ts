@@ -106,12 +106,3 @@ export const TaskExecutionStateContext =
   createContext<TaskExecutionStateContextValue>(
     {} as TaskExecutionStateContextValue
   );
-
-interface TaskAttemptsContextValue {
-  taskAttempts: TaskAttempt[];
-  setTaskAttempts: Dispatch<SetStateAction<TaskAttempt[]>>;
-}
-
-export const TaskAttemptsContext = createContext<TaskAttemptsContextValue>(
-  {} as TaskAttemptsContextValue
-);

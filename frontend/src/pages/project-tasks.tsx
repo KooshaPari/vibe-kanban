@@ -291,7 +291,7 @@ export function ProjectTasks() {
   );
 
   if (loading) {
-    return <Loader message="Loading tasks..." size={32} className="py-8" />;
+    return <Loader data-testid="loader" message="Loading tasks..." size={32} className="py-8" />;
   }
 
   if (error) {
@@ -313,6 +313,7 @@ export function ProjectTasks() {
               </span>
             )}
             <Button
+              data-testid="open-ide-button"
               variant="ghost"
               size="sm"
               onClick={handleOpenInIDE}
@@ -322,6 +323,7 @@ export function ProjectTasks() {
               <FolderOpen className="h-4 w-4" />
             </Button>
             <Button
+              data-testid="settings-button"
               variant="ghost"
               size="sm"
               onClick={() => setIsProjectSettingsOpen(true)}
@@ -341,7 +343,7 @@ export function ProjectTasks() {
             />
             <Button onClick={handleCreateNewTask}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Task
+              Create Task
             </Button>
           </div>
         </div>

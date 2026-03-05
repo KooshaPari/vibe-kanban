@@ -3,13 +3,12 @@ import { Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConfig } from '@/components/config-provider';
 import { attemptsApi, projectsApi } from '@/lib/api';
-import type { GitBranch } from 'shared/types';
+import type { GitBranch, TaskAttempt } from 'shared/types';
 import { EXECUTOR_TYPES, EXECUTOR_LABELS } from 'shared/types';
 import {
   TaskAttemptDataContext,
   TaskAttemptLoadingContext,
   TaskAttemptStoppingContext,
-  TaskAttemptsContext,
   TaskDetailsContext,
   TaskExecutionStateContext,
   TaskSelectedAttemptContext,
@@ -34,7 +33,8 @@ function TaskDetailsToolbar() {
     TaskAttemptDataContext
   );
   const { fetchExecutionState } = useContext(TaskExecutionStateContext);
-  const { taskAttempts, setTaskAttempts } = useContext(TaskAttemptsContext);
+
+  const [taskAttempts, setTaskAttempts] = useState<TaskAttempt[]>([]);
 
   const { config } = useConfig();
 

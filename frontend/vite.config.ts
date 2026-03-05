@@ -27,15 +27,13 @@ export default defineConfig({
   },
 
   build: {
-    // Tauri expects a relative base path
-    target: process.env.TAURI_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
-    minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
-    sourcemap: process.env.TAURI_DEBUG ? true : 'hidden',
+    sourcemap: true
   },
 
-  // prevent vite from obscuring rust errors
-  clearScreen: false,
-  
-  // Env variables starting with the item of `envPrefix` will be exposed in vite's frontend code. 
-  envPrefix: ['VITE_', 'TAURI_'],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    testTimeout: 10000,
+  },
 })
