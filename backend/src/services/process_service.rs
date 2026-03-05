@@ -829,6 +829,10 @@ impl ProcessService {
                         // Setup scripts don't support followup, use regular setup script
                         config.create_executor()
                     }
+                    crate::executor::ExecutorConfig::Docker { .. } => {
+                        // Docker containers don't support followup sessions, use regular Docker executor
+                        config.create_executor()
+                    }
                 };
 
                 executor
