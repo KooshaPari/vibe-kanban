@@ -72,6 +72,7 @@ jobs:
       # Backend vulnerability scanning
       - name: Backend audit (Cargo)
         run: |
+          cargo generate-lockfile --manifest-path backend/Cargo.toml
           cd backend
           cargo install cargo-audit --locked
           cargo audit --file "$GITHUB_WORKSPACE/Cargo.lock" --json > ../backend-audit.json || true
