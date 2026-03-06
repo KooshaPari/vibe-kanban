@@ -6,7 +6,6 @@ pub mod project;
 pub mod task;
 pub mod task_attachment;
 pub mod task_attempt;
-pub mod task_attempt_activity;
 pub mod task_comment;
 pub mod task_template;
 

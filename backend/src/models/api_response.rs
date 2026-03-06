@@ -20,6 +20,15 @@ mod response {
             }
         }
 
+        /// Creates a successful response, with `data` and a message.
+        pub fn success_with_message(data: T, message: impl Into<String>) -> Self {
+            ApiResponse {
+                success: true,
+                data: Some(data),
+                message: Some(message.into()),
+            }
+        }
+
         /// Creates an error response, with `message` and no data.
         pub fn error(message: &str) -> Self {
             ApiResponse {

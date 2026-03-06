@@ -231,11 +231,10 @@ async fn upload_attachment(
         filename,
         file_size
     );
-    Ok(ResponseJson(ApiResponse {
-        success: true,
-        data: Some(attachment),
-        message: Some("File uploaded successfully".to_string()),
-    }))
+    Ok(ResponseJson(ApiResponse::success_with_message(
+        attachment,
+        "File uploaded successfully",
+    )))
 }
 
 async fn get_attachments(
@@ -246,11 +245,7 @@ async fn get_attachments(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(ResponseJson(ApiResponse {
-        success: true,
-        data: Some(attachments),
-        message: None,
-    }))
+    Ok(ResponseJson(ApiResponse::success(attachments)))
 }
 
 async fn delete_attachment(
@@ -274,11 +269,10 @@ async fn delete_attachment(
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        Ok(ResponseJson(ApiResponse {
-            success: true,
-            data: Some(()),
-            message: Some("Attachment deleted successfully".to_string()),
-        }))
+        Ok(ResponseJson(ApiResponse::success_with_message(
+            (),
+            "Attachment deleted successfully",
+        )))
     } else {
         Err(StatusCode::NOT_FOUND)
     }
@@ -310,11 +304,10 @@ async fn create_comment(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(ResponseJson(ApiResponse {
-        success: true,
-        data: Some(comment),
-        message: Some("Comment created successfully".to_string()),
-    }))
+    Ok(ResponseJson(ApiResponse::success_with_message(
+        comment,
+        "Comment created successfully",
+    )))
 }
 
 async fn get_comments(
@@ -325,11 +318,7 @@ async fn get_comments(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(ResponseJson(ApiResponse {
-        success: true,
-        data: Some(comments),
-        message: None,
-    }))
+    Ok(ResponseJson(ApiResponse::success(comments)))
 }
 
 async fn update_comment(
@@ -341,11 +330,10 @@ async fn update_comment(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(ResponseJson(ApiResponse {
-        success: true,
-        data: Some(comment),
-        message: Some("Comment updated successfully".to_string()),
-    }))
+    Ok(ResponseJson(ApiResponse::success_with_message(
+        comment,
+        "Comment updated successfully",
+    )))
 }
 
 async fn delete_comment(
@@ -357,11 +345,10 @@ async fn delete_comment(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if rows_affected > 0 {
-        Ok(ResponseJson(ApiResponse {
-            success: true,
-            data: Some(()),
-            message: Some("Comment deleted successfully".to_string()),
-        }))
+        Ok(ResponseJson(ApiResponse::success_with_message(
+            (),
+            "Comment deleted successfully",
+        )))
     } else {
         Err(StatusCode::NOT_FOUND)
     }
