@@ -44,6 +44,9 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
+      - name: Override repo Rust toolchain
+        run: rustup override set ${{ env.RUST_TOOLCHAIN }}
+
       # Frontend vulnerability scanning
       - name: Install frontend dependencies
         run: |
@@ -156,6 +159,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Override repo Rust toolchain
+        run: rustup override set ${{ env.RUST_TOOLCHAIN }}
 
       - name: Build frontend for analysis
         run: |

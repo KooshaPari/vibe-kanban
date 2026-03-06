@@ -164,6 +164,9 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt, clippy
 
+      - name: Override repo Rust toolchain
+        run: rustup override set ${{ env.RUST_TOOLCHAIN }}
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -199,6 +202,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Override repo Rust toolchain
+        run: rustup override set ${{ env.RUST_TOOLCHAIN }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2

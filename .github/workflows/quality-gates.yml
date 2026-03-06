@@ -460,6 +460,7 @@ jobs:
           pnpm dlx pa11y http://localhost:3000 \
             --standard WCAG2AA \
             --level error \
+            --chrome-launch-config='{"args":["--no-sandbox"]}' \
             --reporter json > pa11y-results.json
           
           # Check pa11y results
