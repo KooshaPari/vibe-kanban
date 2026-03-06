@@ -457,10 +457,17 @@ jobs:
           
           # 2. Pa11y testing
           echo "Running pa11y tests..."
+          cat > pa11y-ci.json <<'EOF'
+          {
+            "chromeLaunchConfig": {
+              "args": ["--no-sandbox"]
+            }
+          }
+          EOF
           pnpm dlx pa11y http://localhost:3000 \
             --standard WCAG2AA \
             --level error \
-            --chrome-launch-config='{"args":["--no-sandbox"]}' \
+            --config pa11y-ci.json \
             --reporter json > pa11y-results.json
           
           # Check pa11y results
