@@ -11,7 +11,7 @@ on:
 env:
   NODE_VERSION: 22
   PNPM_VERSION: 10.8.1
-  RUST_TOOLCHAIN: nightly-2025-05-18
+  RUST_TOOLCHAIN: 1.89.0
   # Quality thresholds - Maximum standards
   MIN_COVERAGE_FRONTEND: 100
   MIN_COVERAGE_BACKEND: 100
@@ -431,6 +431,9 @@ jobs:
         run: |
           cd frontend
           npm install --save-dev @axe-core/cli axe-playwright pa11y lighthouse
+
+      - name: Sync ChromeDriver
+        run: npx browser-driver-manager install chrome
           
       - name: Start test server
         run: |
