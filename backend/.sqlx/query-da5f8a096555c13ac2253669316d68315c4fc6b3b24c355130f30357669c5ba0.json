@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: Uuid\", task_id as \"task_id!: Uuid\", filename, original_name, file_path, file_size, mime_type, file_type as \"file_type!: FileType\", created_at as \"created_at!: DateTime<Utc>\"\n               FROM task_attachments \n               WHERE task_id = $1\n               ORDER BY created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "task_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "filename",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "original_name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_path",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_size",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "mime_type",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_type!: FileType",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 8,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "da5f8a096555c13ac2253669316d68315c4fc6b3b24c355130f30357669c5ba0"
+}

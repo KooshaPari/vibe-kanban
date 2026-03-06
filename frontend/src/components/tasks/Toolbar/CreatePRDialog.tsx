@@ -77,7 +77,7 @@ function CreatePrDialog({
 
     try {
       const prUrl = await attemptsApi.createPR(
-        projectId!,
+        projectId,
         selectedAttempt.task_id,
         selectedAttempt.id,
         {

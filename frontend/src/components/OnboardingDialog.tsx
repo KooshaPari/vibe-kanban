@@ -82,11 +82,11 @@ export function OnboardingDialog({ open, onComplete }: OnboardingDialogProps) {
                 <Select
                   value={executor.type}
                   onValueChange={(value) => {
-                    const type = value as ExecutorConfig['type'];
-                    if (type === 'setupscript') {
-                      setExecutor({ type: 'setupscript', script: '' });
+                    const executorType = value as ExecutorConfig['type'];
+                    if (executorType === 'setup-script') {
+                      setExecutor({ type: 'setup-script', script: '' });
                     } else {
-                      setExecutor({ type } as ExecutorConfig);
+                      setExecutor({ type: executorType } as ExecutorConfig);
                     }
                   }}
                 >
@@ -105,8 +105,10 @@ export function OnboardingDialog({ open, onComplete }: OnboardingDialogProps) {
                   {executor.type === 'claude' && 'Claude Code from Anthropic'}
                   {executor.type === 'amp' && 'From Sourcegraph'}
                   {executor.type === 'gemini' && 'Google Gemini from Bloop'}
-                  {executor.type === 'charmopencode' &&
+                  {executor.type === 'charm-opencode' &&
                     'Charm/Opencode AI assistant'}
+                  {executor.type === 'claude-code-router' &&
+                    'Claude Code Router'}
                   {executor.type === 'echo' &&
                     'This is just for debugging vibe-kanban itself'}
                 </p>
@@ -126,7 +128,13 @@ export function OnboardingDialog({ open, onComplete }: OnboardingDialogProps) {
                 <Label htmlFor="editor">Preferred Editor</Label>
                 <Select
                   value={editorType}
-                  onValueChange={(value: EditorType) => setEditorType(value)}
+                  onValueChange={(value: EditorType) => {
+                    setEditorType(value);
+                    // Clear custom command when switching away from custom editor
+                    if (value !== 'custom') {
+                      setCustomCommand('');
+                    }
+                  }}
                 >
                   <SelectTrigger id="editor">
                     <SelectValue placeholder="Select your preferred editor" />

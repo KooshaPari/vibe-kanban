@@ -1,23 +1,25 @@
-import { GitCompare, MessageSquare, BarChart3 } from 'lucide-react';
+import { GitCompare, MessageSquare, Image, Network } from 'lucide-react';
 import { useContext } from 'react';
-import { TaskDiffContext } from '@/components/context/taskDetailsContext.ts';
+import {
+  TaskDiffContext,
+  TaskRelatedTasksContext,
+} from '@/components/context/taskDetailsContext.ts';
 
 type Props = {
-  activeTab: 'logs' | 'diffs' | 'visualizations';
-  setActiveTab: (tab: 'logs' | 'diffs' | 'visualizations') => void;
+  activeTab: 'logs' | 'diffs' | 'gallery' | 'related';
+  setActiveTab: (tab: 'logs' | 'diffs' | 'gallery' | 'related') => void;
   setUserSelectedTab: (tab: boolean) => void;
 };
 
 function TabNavigation({ activeTab, setActiveTab, setUserSelectedTab }: Props) {
   const { diff } = useContext(TaskDiffContext);
+  const { totalRelatedCount } = useContext(TaskRelatedTasksContext);
   return (
     <div className="border-b bg-muted/30">
       <div className="flex px-4">
         <button
           onClick={() => {
-            console.log('Logs tab clicked - setting activeTab to logs');
             setActiveTab('logs');
-            setUserSelectedTab(true);
           }}
           className={`flex items-center px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'logs'
@@ -30,9 +32,7 @@ function TabNavigation({ activeTab, setActiveTab, setUserSelectedTab }: Props) {
         </button>
         <button
           onClick={() => {
-            console.log('Diffs tab clicked - setting activeTab to diffs');
             setActiveTab('diffs');
-            setUserSelectedTab(true);
           }}
           className={`flex items-center px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'diffs'
@@ -50,18 +50,35 @@ function TabNavigation({ activeTab, setActiveTab, setUserSelectedTab }: Props) {
         </button>
         <button
           onClick={() => {
-            console.log('Visualizations tab clicked - setting activeTab to visualizations');
-            setActiveTab('visualizations');
+            setActiveTab('gallery');
             setUserSelectedTab(true);
           }}
           className={`flex items-center px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'visualizations'
+            activeTab === 'gallery'
               ? 'border-primary text-primary bg-background'
               : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
           }`}
         >
-          <BarChart3 className="h-4 w-4 mr-2" />
-          Visualizations
+          <Image className="h-4 w-4 mr-2" />
+          Gallery
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('related');
+          }}
+          className={`flex items-center px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'related'
+              ? 'border-primary text-primary bg-background'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Network className="h-4 w-4 mr-2" />
+          Related Tasks
+          {totalRelatedCount > 0 && (
+            <span className="ml-2 px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded-full">
+              {totalRelatedCount}
+            </span>
+          )}
         </button>
       </div>
     </div>

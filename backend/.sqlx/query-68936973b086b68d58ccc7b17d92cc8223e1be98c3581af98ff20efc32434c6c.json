@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT ta.id as \"id!: Uuid\", ta.task_id as \"task_id!: Uuid\", ta.filename, ta.original_name, ta.file_path, ta.file_size, ta.mime_type, ta.file_type as \"file_type!: crate::models::task_attachment::FileType\", ta.created_at as \"created_at!: DateTime<Utc>\"\n                   FROM task_attachments ta\n                   JOIN comment_attachments ca ON ta.id = ca.attachment_id\n                   WHERE ca.comment_id = $1\n                   ORDER BY ta.created_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "task_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "filename",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "original_name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_path",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_size",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "mime_type",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_type!: crate::models::task_attachment::FileType",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 8,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "68936973b086b68d58ccc7b17d92cc8223e1be98c3581af98ff20efc32434c6c"
+}

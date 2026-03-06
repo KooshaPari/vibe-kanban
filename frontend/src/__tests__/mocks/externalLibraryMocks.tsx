@@ -1,0 +1,378 @@
+import { jest } from '@jest/globals';
+import React from 'react';
+
+// Type definitions for mock props
+interface MockProps {
+  children?: React.ReactNode;
+  className?: string;
+  [key: string]: unknown;
+}
+
+interface DropzoneProps {
+  accept?: Record<string, string[]>;
+  disabled?: boolean;
+}
+
+interface IconProps {
+  size?: number;
+  className?: string;
+  [key: string]: unknown;
+}
+
+interface CVAOptions {
+  variants?: Record<string, Record<string, string>>;
+  [key: string]: unknown;
+}
+
+interface CVAProps {
+  [key: string]: string | boolean | undefined;
+}
+
+// Mock react-dropzone
+jest.mock('react-dropzone', () => ({
+  useDropzone: ({ accept, disabled }: DropzoneProps) => ({
+    getRootProps: () => ({
+      'data-testid': 'dropzone-root',
+      onClick: jest.fn(),
+      onDrop: jest.fn(),
+      onDragOver: jest.fn(),
+      onDragLeave: jest.fn(),
+    }),
+    getInputProps: () => ({
+      'data-testid': 'dropzone-input',
+      type: 'file',
+      multiple: true,
+      accept,
+      disabled,
+    }),
+    isDragActive: false,
+    isDragAccept: false,
+    isDragReject: false,
+    acceptedFiles: [],
+    rejectedFiles: [],
+    open: jest.fn(),
+  }),
+}));
+
+// Mock react-markdown
+jest.mock('react-markdown', () => {
+  return ({ children }: { children: string }) => (
+    <div data-testid="markdown-content">{children}</div>
+  );
+});
+
+// Mock @radix-ui components
+jest.mock('@radix-ui/react-dropdown-menu', () => ({
+  Root: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="dropdown-root">{children}</div>
+  ),
+  Trigger: ({ children, ...props }: MockProps) => (
+    <button data-testid="dropdown-trigger" {...props}>
+      {children}
+    </button>
+  ),
+  Content: ({ children, ...props }: MockProps) => (
+    <div data-testid="dropdown-content" {...props}>
+      {children}
+    </div>
+  ),
+  Item: ({ children, ...props }: MockProps) => (
+    <div data-testid="dropdown-item" {...props}>
+      {children}
+    </div>
+  ),
+  Separator: () => <hr data-testid="dropdown-separator" />,
+  Arrow: () => <div data-testid="dropdown-arrow" />,
+  Portal: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="dropdown-portal">{children}</div>
+  ),
+}));
+
+jest.mock('@radix-ui/react-tabs', () => ({
+  Root: ({ children, ...props }: MockProps) => (
+    <div data-testid="tabs-root" {...props}>
+      {children}
+    </div>
+  ),
+  List: ({ children, ...props }: MockProps) => (
+    <div data-testid="tabs-list" {...props}>
+      {children}
+    </div>
+  ),
+  Trigger: ({ children, ...props }: MockProps) => (
+    <button data-testid="tabs-trigger" {...props}>
+      {children}
+    </button>
+  ),
+  Content: ({ children, ...props }: MockProps) => (
+    <div data-testid="tabs-content" {...props}>
+      {children}
+    </div>
+  ),
+}));
+
+jest.mock('@radix-ui/react-tooltip', () => ({
+  Provider: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="tooltip-provider">{children}</div>
+  ),
+  Root: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="tooltip-root">{children}</div>
+  ),
+  Trigger: ({ children, ...props }: MockProps) => (
+    <div data-testid="tooltip-trigger" {...props}>
+      {children}
+    </div>
+  ),
+  Content: ({ children, ...props }: MockProps) => (
+    <div data-testid="tooltip-content" {...props}>
+      {children}
+    </div>
+  ),
+  Arrow: () => <div data-testid="tooltip-arrow" />,
+  Portal: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="tooltip-portal">{children}</div>
+  ),
+}));
+
+jest.mock('@radix-ui/react-select', () => ({
+  Root: ({ children, ...props }: MockProps) => (
+    <div data-testid="select-root" {...props}>
+      {children}
+    </div>
+  ),
+  Trigger: ({ children, ...props }: MockProps) => (
+    <button data-testid="select-trigger" {...props}>
+      {children}
+    </button>
+  ),
+  Value: ({ children, ...props }: MockProps) => (
+    <span data-testid="select-value" {...props}>
+      {children}
+    </span>
+  ),
+  Content: ({ children, ...props }: MockProps) => (
+    <div data-testid="select-content" {...props}>
+      {children}
+    </div>
+  ),
+  Item: ({ children, ...props }: MockProps) => (
+    <div data-testid="select-item" {...props}>
+      {children}
+    </div>
+  ),
+  ItemText: ({ children }: { children: React.ReactNode }) => (
+    <span data-testid="select-item-text">{children}</span>
+  ),
+  Viewport: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="select-viewport">{children}</div>
+  ),
+  ScrollUpButton: () => <button data-testid="select-scroll-up" />,
+  ScrollDownButton: () => <button data-testid="select-scroll-down" />,
+  Portal: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="select-portal">{children}</div>
+  ),
+}));
+
+jest.mock('@radix-ui/react-separator', () => ({
+  Root: ({ ...props }: MockProps) => <hr data-testid="separator" {...props} />,
+}));
+
+jest.mock('@radix-ui/react-label', () => ({
+  Root: ({ children, ...props }: MockProps) => (
+    <label data-testid="label" {...props}>
+      {children}
+    </label>
+  ),
+}));
+
+// Mock @dnd-kit
+jest.mock('@dnd-kit/core', () => ({
+  DndContext: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="dnd-context">{children}</div>
+  ),
+  useDraggable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: jest.fn(),
+    transform: null,
+    isDragging: false,
+  }),
+  useDroppable: () => ({
+    setNodeRef: jest.fn(),
+    isOver: false,
+  }),
+  DragOverlay: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="drag-overlay">{children}</div>
+  ),
+  closestCenter: jest.fn(),
+  closestCorners: jest.fn(),
+  rectIntersection: jest.fn(),
+}));
+
+jest.mock('@dnd-kit/modifiers', () => ({
+  restrictToHorizontalAxis: jest.fn(),
+  restrictToVerticalAxis: jest.fn(),
+  restrictToWindowEdges: jest.fn(),
+}));
+
+// Mock lucide-react icons
+jest.mock('lucide-react', () => {
+  const createMockIcon =
+    (name: string) =>
+    ({ size, className, ...props }: IconProps) => (
+      <svg
+        data-testid={`${name.toLowerCase()}-icon`}
+        width={size || 24}
+        height={size || 24}
+        className={className}
+        {...props}
+      />
+    );
+
+  return {
+    ChevronDown: createMockIcon('ChevronDown'),
+    ChevronRight: createMockIcon('ChevronRight'),
+    ChevronLeft: createMockIcon('ChevronLeft'),
+    ChevronUp: createMockIcon('ChevronUp'),
+    X: createMockIcon('X'),
+    Plus: createMockIcon('Plus'),
+    Minus: createMockIcon('Minus'),
+    Upload: createMockIcon('Upload'),
+    Download: createMockIcon('Download'),
+    File: createMockIcon('File'),
+    Folder: createMockIcon('Folder'),
+    Image: createMockIcon('Image'),
+    Video: createMockIcon('Video'),
+    FileText: createMockIcon('FileText'),
+    Trash: createMockIcon('Trash'),
+    Edit: createMockIcon('Edit'),
+    Save: createMockIcon('Save'),
+    Settings: createMockIcon('Settings'),
+    User: createMockIcon('User'),
+    Search: createMockIcon('Search'),
+    Filter: createMockIcon('Filter'),
+    Sort: createMockIcon('Sort'),
+    Menu: createMockIcon('Menu'),
+    MoreHorizontal: createMockIcon('MoreHorizontal'),
+    MoreVertical: createMockIcon('MoreVertical'),
+    Play: createMockIcon('Play'),
+    Pause: createMockIcon('Pause'),
+    Stop: createMockIcon('Stop'),
+    Refresh: createMockIcon('Refresh'),
+    Copy: createMockIcon('Copy'),
+    ExternalLink: createMockIcon('ExternalLink'),
+    Link: createMockIcon('Link'),
+    Unlink: createMockIcon('Unlink'),
+    Eye: createMockIcon('Eye'),
+    EyeOff: createMockIcon('EyeOff'),
+    Check: createMockIcon('Check'),
+    AlertCircle: createMockIcon('AlertCircle'),
+    Info: createMockIcon('Info'),
+    Warning: createMockIcon('Warning'),
+    Error: createMockIcon('Error'),
+    Sun: createMockIcon('Sun'),
+    Moon: createMockIcon('Moon'),
+    Monitor: createMockIcon('Monitor'),
+    Loader: createMockIcon('Loader'),
+    Spinner: createMockIcon('Spinner'),
+    GitBranch: createMockIcon('GitBranch'),
+    GitCommit: createMockIcon('GitCommit'),
+    GitMerge: createMockIcon('GitMerge'),
+    GitPullRequest: createMockIcon('GitPullRequest'),
+    Code: createMockIcon('Code'),
+    Terminal: createMockIcon('Terminal'),
+    Package: createMockIcon('Package'),
+    Layers: createMockIcon('Layers'),
+    Grid: createMockIcon('Grid'),
+    List: createMockIcon('List'),
+    Calendar: createMockIcon('Calendar'),
+    Clock: createMockIcon('Clock'),
+    MapPin: createMockIcon('MapPin'),
+    Tag: createMockIcon('Tag'),
+    Hash: createMockIcon('Hash'),
+    AtSign: createMockIcon('AtSign'),
+    Mail: createMockIcon('Mail'),
+    Phone: createMockIcon('Phone'),
+    MessageCircle: createMockIcon('MessageCircle'),
+    Send: createMockIcon('Send'),
+    Share: createMockIcon('Share'),
+    Heart: createMockIcon('Heart'),
+    Star: createMockIcon('Star'),
+    Bookmark: createMockIcon('Bookmark'),
+    Flag: createMockIcon('Flag'),
+    ThumbsUp: createMockIcon('ThumbsUp'),
+    ThumbsDown: createMockIcon('ThumbsDown'),
+  };
+});
+
+// Mock @microsoft/fetch-event-source
+jest.mock('@microsoft/fetch-event-source', () => ({
+  fetchEventSource: jest.fn(),
+}));
+
+// Mock @sentry/react
+jest.mock('@sentry/react', () => ({
+  captureException: jest.fn(),
+  captureMessage: jest.fn(),
+  configureScope: jest.fn(),
+  withScope: jest.fn((callback) =>
+    callback({ setTag: jest.fn(), setLevel: jest.fn() })
+  ),
+  Severity: {
+    Error: 'error',
+    Warning: 'warning',
+    Info: 'info',
+    Debug: 'debug',
+  },
+}));
+
+// Mock fast-json-patch
+jest.mock('fast-json-patch', () => ({
+  compare: jest.fn(() => []),
+  applyPatch: jest.fn(() => ({ newDocument: {}, result: [] })),
+  validate: jest.fn(() => null),
+}));
+
+// Mock clsx
+jest.mock('clsx', () => {
+  return (...args: unknown[]) => {
+    return args
+      .flat()
+      .filter(Boolean)
+      .map((arg) =>
+        typeof arg === 'object'
+          ? Object.keys(arg)
+              .filter((key) => arg[key])
+              .join(' ')
+          : String(arg)
+      )
+      .join(' ');
+  };
+});
+
+// Mock tailwind-merge
+jest.mock('tailwind-merge', () => ({
+  twMerge: (...args: string[]) => args.filter(Boolean).join(' '),
+}));
+
+// Mock class-variance-authority
+jest.mock('class-variance-authority', () => ({
+  cva: (base: string, options: CVAOptions) => {
+    return (props: CVAProps) => {
+      let classes = base;
+      if (options?.variants && props) {
+        Object.keys(props).forEach((key) => {
+          if (options.variants[key] && options.variants[key][props[key]]) {
+            classes += ' ' + options.variants[key][props[key]];
+          }
+        });
+      }
+      return classes;
+    };
+  },
+}));
+
+// Helper to reset all external library mocks
+export const resetExternalLibraryMocks = () => {
+  jest.clearAllMocks();
+};

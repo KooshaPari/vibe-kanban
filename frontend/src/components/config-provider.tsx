@@ -22,14 +22,22 @@ const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 interface ConfigProviderProps {
   children: ReactNode;
+  initialConfig?: Config;
 }
 
-export function ConfigProvider({ children }: ConfigProviderProps) {
-  const [config, setConfig] = useState<Config | null>(null);
-  const [loading, setLoading] = useState(true);
+export function ConfigProvider({
+  children,
+  initialConfig,
+}: ConfigProviderProps) {
+  const [config, setConfig] = useState<Config | null>(initialConfig || null);
+  const [loading, setLoading] = useState(!initialConfig);
   const [githubTokenInvalid, setGithubTokenInvalid] = useState(false);
 
   useEffect(() => {
+    if (initialConfig) {
+      return; // Skip loading if initial config is provided
+    }
+
     const loadConfig = async () => {
       try {
         const config = await configApi.getConfig();
@@ -42,7 +50,7 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
     };
 
     loadConfig();
-  }, []);
+  }, [initialConfig]);
 
   // Check GitHub token validity after config loads
   useEffect(() => {
@@ -59,7 +67,34 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
   }, [loading]);
 
   const updateConfig = useCallback((updates: Partial<Config>) => {
-    setConfig((prev) => (prev ? { ...prev, ...updates } : null));
+    setConfig((prev) => {
+      const newConfig = prev ? { ...prev, ...updates } : null;
+      if (newConfig) {
+        // Save the config asynchronously after updating state with retry logic
+        setTimeout(async () => {
+          let attempts = 0;
+          const maxAttempts = 3;
+
+          while (attempts < maxAttempts) {
+            try {
+              await configApi.saveConfig(newConfig);
+              break; // Success, exit loop
+            } catch (err) {
+              attempts++;
+              console.error('Error saving config:', err);
+
+              if (attempts < maxAttempts) {
+                // Wait before retry (exponential backoff)
+                await new Promise((resolve) =>
+                  setTimeout(resolve, Math.pow(2, attempts) * 1000)
+                );
+              }
+            }
+          }
+        }, 0);
+      }
+      return newConfig;
+    });
   }, []);
 
   const saveConfig = useCallback(async (): Promise<boolean> => {
@@ -110,6 +145,7 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useConfig() {
   const context = useContext(ConfigContext);
   if (context === undefined) {
@@ -117,3 +153,5 @@ export function useConfig() {
   }
   return context;
 }
+
+export { ConfigContext };

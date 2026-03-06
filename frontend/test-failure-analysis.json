@@ -1,0 +1,132 @@
+{
+  "timestamp": "2025-07-18T21:42:48.767Z",
+  "summary": {
+    "totalTests": 856,
+    "passingTests": 566,
+    "failingTests": 290,
+    "passRate": "66.1%"
+  },
+  "categories": {
+    "accessibility": [
+      "src/components/projects/ProjectCard.a11y.test.tsx",
+      "src/components/tasks/TaskKanbanBoard.a11y.test.tsx",
+      "src/components/layout/navbar.a11y.test.tsx",
+      "src/components/ui/button.a11y.test.tsx",
+      "src/components/tasks/TaskCard.a11y.test.tsx",
+      "src/components/ui/dialog.a11y.test.tsx",
+      "src/components/ui/input.a11y.test.tsx (6.405 s)",
+      "src/__tests__/accessibility/utils.ts",
+      "src/components/projects/ProjectCard.a11y.test.tsx",
+      "src/components/tasks/TaskKanbanBoard.a11y.test.tsx",
+      "src/components/layout/navbar.a11y.test.tsx",
+      "src/components/ui/button.a11y.test.tsx",
+      "src/components/tasks/TaskCard.a11y.test.tsx",
+      "src/components/ui/dialog.a11y.test.tsx",
+      "src/components/ui/input.a11y.test.tsx (6.405 s)",
+      "src/__tests__/accessibility/utils.ts"
+    ],
+    "mocking": [
+      "src/__tests__/mocks/apiMocks.ts",
+      "src/__tests__/utils/mockData.ts",
+      "src/__tests__/mocks/routerMocks.ts",
+      "src/__tests__/mocks/externalLibraryMocks.tsx",
+      "src/__tests__/mocks/apiMocks.ts",
+      "src/__tests__/utils/mockData.ts",
+      "src/__tests__/mocks/routerMocks.ts",
+      "src/__tests__/mocks/externalLibraryMocks.tsx"
+    ],
+    "assertions": [],
+    "async": [],
+    "api": [
+      "src/__tests__/api.test.ts",
+      "src/__tests__/api.test.ts"
+    ],
+    "component": [
+      "src/components/tasks/__tests__/TaskFormDialog.test.tsx",
+      "src/components/ui/__tests__/dialog.test.tsx",
+      "src/components/ui/__tests__/button.test.tsx",
+      "src/components/tasks/__tests__/TaskCard.test.tsx",
+      "src/components/__tests__/PrivacyOptInDialog.test.tsx",
+      "src/components/tasks/TaskDetails/__tests__/GalleryTab.test.tsx (5.433 s)",
+      "src/components/__tests__/DisclaimerDialog.test.tsx",
+      "src/components/__tests__/GitHubLoginDialog.test.tsx",
+      "src/components/ui/__tests__/input.test.tsx (6.545 s)",
+      "src/components/__tests__/OnboardingDialog.test.tsx",
+      "src/components/tasks/__tests__/TaskFormDialog.test.tsx",
+      "src/components/ui/__tests__/dialog.test.tsx",
+      "src/components/ui/__tests__/button.test.tsx",
+      "src/components/tasks/__tests__/TaskCard.test.tsx",
+      "src/components/__tests__/PrivacyOptInDialog.test.tsx",
+      "src/components/tasks/TaskDetails/__tests__/GalleryTab.test.tsx (5.433 s)",
+      "src/components/__tests__/DisclaimerDialog.test.tsx",
+      "src/components/__tests__/GitHubLoginDialog.test.tsx",
+      "src/components/ui/__tests__/input.test.tsx (6.545 s)",
+      "src/components/__tests__/OnboardingDialog.test.tsx"
+    ],
+    "integration": [
+      "src/__tests__/integration/pages/projects-page.integration.test.tsx",
+      "src/__tests__/integration/forms/task-form.integration.test.tsx",
+      "src/__tests__/integration/api/tasks-api.integration.test.tsx",
+      "src/__tests__/integration/api/projects-api.integration.test.tsx",
+      "src/__tests__/integration/forms/project-form.integration.test.tsx",
+      "src/__tests__/integration/context/task-details-context.integration.test.tsx",
+      "src/__tests__/integration/pages/project-tasks.integration.test.tsx",
+      "src/__tests__/integration/router/navigation.integration.test.tsx",
+      "src/__tests__/integration/context/config-provider.integration.test.tsx (8.365 s)",
+      "src/__tests__/integration/pages/projects-page.integration.test.tsx",
+      "src/__tests__/integration/forms/task-form.integration.test.tsx",
+      "src/__tests__/integration/api/tasks-api.integration.test.tsx",
+      "src/__tests__/integration/api/projects-api.integration.test.tsx",
+      "src/__tests__/integration/forms/project-form.integration.test.tsx",
+      "src/__tests__/integration/context/task-details-context.integration.test.tsx",
+      "src/__tests__/integration/pages/project-tasks.integration.test.tsx",
+      "src/__tests__/integration/router/navigation.integration.test.tsx",
+      "src/__tests__/integration/context/config-provider.integration.test.tsx (8.365 s)"
+    ],
+    "utilities": [
+      "src/__tests__/utils/test-utils.tsx",
+      "src/__tests__/utils/testUtils.tsx",
+      "src/__tests__/utils/testSetup.ts",
+      "src/__tests__/utils/helpers.ts",
+      "src/__tests__/utils/clipboardTestUtils.ts",
+      "src/__tests__/utils/customMatchers.ts",
+      "src/__tests__/setup.ts",
+      "src/__tests__/test-utils.tsx",
+      "src/__tests__/utils/test-utils.tsx",
+      "src/__tests__/utils/testUtils.tsx",
+      "src/__tests__/utils/testSetup.ts",
+      "src/__tests__/utils/helpers.ts",
+      "src/__tests__/utils/clipboardTestUtils.ts",
+      "src/__tests__/utils/customMatchers.ts",
+      "src/__tests__/setup.ts",
+      "src/__tests__/test-utils.tsx"
+    ],
+    "other": [
+      "src/__tests__/keyboard-shortcuts.test.ts",
+      "src/__tests__/example.test.tsx",
+      "src/__tests__/index.ts",
+      "src/App.test.tsx",
+      "src/__tests__/keyboard-shortcuts.test.ts",
+      "src/__tests__/example.test.tsx",
+      "src/__tests__/index.ts",
+      "src/App.test.tsx"
+    ]
+  },
+  "recommendations": {
+    "high_priority": [
+      "accessibility",
+      "api",
+      "component"
+    ],
+    "medium_priority": [
+      "mocking",
+      "assertions",
+      "async"
+    ],
+    "low_priority": [
+      "utilities",
+      "integration",
+      "other"
+    ]
+  }
+}

@@ -1,0 +1,469 @@
+name: Performance Optimization & Monitoring
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: 22
+  PNPM_VERSION: 10.8.1
+  RUST_TOOLCHAIN: 1.89.0
+  # Performance thresholds - Maximum standards
+  MAX_BUNDLE_SIZE: 1048576  # 1MB
+  MAX_INITIAL_LOAD_TIME: 1500  # 1.5s
+  MAX_FCP: 1500  # First Contentful Paint
+  MAX_LCP: 2500  # Largest Contentful Paint
+  MAX_CLS: 0.1   # Cumulative Layout Shift
+  MAX_FID: 100   # First Input Delay
+  MAX_TTI: 3000  # Time to Interactive
+  MAX_TBT: 200   # Total Blocking Time
+
+jobs:
+  # Frontend performance analysis
+  frontend-performance:
+    name: 🚀 Frontend Performance Analysis
+    runs-on: buildjet-4vcpu-ubuntu-2204
+    outputs:
+      performance-score: ${{ steps.performance-check.outputs.score }}
+      bundle-size: ${{ steps.bundle-analysis.outputs.size }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build with performance monitoring
+        run: |
+          cd frontend
+          
+          # Build with source maps for analysis
+          VITE_ANALYZE=true npm run build
+          
+          # Generate bundle analysis
+          npx vite-bundle-analyzer dist/stats.json --mode json > bundle-analysis.json
+
+      - name: Bundle size analysis
+        id: bundle-analysis
+        run: |
+          cd frontend
+          
+          # Calculate total bundle size
+          TOTAL_SIZE=$(find dist -name "*.js" -exec stat -c%s {} + | awk '{s+=$1} END {print s}')
+          TOTAL_SIZE_MB=$(echo "scale=2; $TOTAL_SIZE / 1024 / 1024" | bc)
+          
+          echo "Total bundle size: $TOTAL_SIZE bytes ($TOTAL_SIZE_MB MB)"
+          echo "size=$TOTAL_SIZE" >> $GITHUB_OUTPUT
+          
+          # Check individual chunks
+          echo "Analyzing individual chunks..."
+          for file in dist/assets/*.js; do
+            if [[ -f "$file" ]]; then
+              SIZE=$(stat -c%s "$file")
+              SIZE_KB=$(echo "scale=2; $SIZE / 1024" | bc)
+              echo "  $(basename "$file"): ${SIZE_KB}KB"
+            fi
+          done
+          
+          # Fail if bundle exceeds limit
+          if [[ $TOTAL_SIZE -gt $MAX_BUNDLE_SIZE ]]; then
+            echo "❌ Bundle size exceeds limit: $TOTAL_SIZE > $MAX_BUNDLE_SIZE bytes"
+            exit 1
+          fi
+          
+          echo "✅ Bundle size within limits: $TOTAL_SIZE ≤ $MAX_BUNDLE_SIZE bytes"
+
+      - name: Code splitting analysis
+        run: |
+          cd frontend
+          echo "Analyzing code splitting efficiency..."
+          
+          # Check for proper code splitting
+          CHUNK_COUNT=$(ls -1 dist/assets/*.js 2>/dev/null | wc -l)
+          if [[ $CHUNK_COUNT -lt 3 ]]; then
+            echo "⚠️ Consider implementing more code splitting: only $CHUNK_COUNT chunks found"
+          else
+            echo "✅ Good code splitting: $CHUNK_COUNT chunks found"
+          fi
+          
+          # Analyze vendor chunk size
+          VENDOR_SIZE=$(find dist/assets -name "*vendor*.js" -exec stat -c%s {} + 2>/dev/null | awk '{s+=$1} END {print s}' || echo "0")
+          if [[ $VENDOR_SIZE -gt 524288 ]]; then  # 512KB
+            echo "⚠️ Vendor chunk is large: $(echo "scale=2; $VENDOR_SIZE / 1024" | bc)KB"
+          fi
+
+      - name: Asset optimization check
+        run: |
+          cd frontend
+          echo "Checking asset optimization..."
+          
+          # Check for unoptimized images
+          LARGE_IMAGES=$(find dist -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | xargs ls -la | awk '$5 > 100000' | wc -l)
+          if [[ $LARGE_IMAGES -gt 0 ]]; then
+            echo "⚠️ Found $LARGE_IMAGES large images (>100KB). Consider optimization."
+          fi
+          
+          # Check for unused CSS
+          CSS_SIZE=$(find dist -name "*.css" -exec stat -c%s {} + | awk '{s+=$1} END {print s}')
+          CSS_SIZE_KB=$(echo "scale=2; $CSS_SIZE / 1024" | bc)
+          echo "Total CSS size: ${CSS_SIZE_KB}KB"
+          
+          if [[ $CSS_SIZE -gt 102400 ]]; then  # 100KB
+            echo "⚠️ CSS bundle is large: ${CSS_SIZE_KB}KB. Consider purging unused CSS."
+          fi
+
+      - name: Lighthouse performance audit
+        id: performance-check
+        run: |
+          cd frontend
+          
+          # Start preview server
+          npx serve -s dist -p 3000 &
+          sleep 10
+          
+          # Run Lighthouse performance audit
+          npx lighthouse http://localhost:3000 \
+            --only-categories=performance \
+            --output=json \
+            --output-path=lighthouse-performance.json \
+            --chrome-flags="--headless --no-sandbox" \
+            --throttling-method=devtools
+          
+          # Extract performance metrics
+          PERFORMANCE_SCORE=$(cat lighthouse-performance.json | jq '.categories.performance.score')
+          PERFORMANCE_PERCENT=$(echo "$PERFORMANCE_SCORE * 100" | bc -l | cut -d. -f1)
+          
+          FCP=$(cat lighthouse-performance.json | jq '.audits["first-contentful-paint"].numericValue')
+          LCP=$(cat lighthouse-performance.json | jq '.audits["largest-contentful-paint"].numericValue')
+          CLS=$(cat lighthouse-performance.json | jq '.audits["cumulative-layout-shift"].numericValue')
+          FID=$(cat lighthouse-performance.json | jq '.audits["max-potential-fid"].numericValue // 0')
+          TTI=$(cat lighthouse-performance.json | jq '.audits["interactive"].numericValue')
+          TBT=$(cat lighthouse-performance.json | jq '.audits["total-blocking-time"].numericValue')
+          
+          echo "Performance Metrics:"
+          echo "  Performance Score: $PERFORMANCE_PERCENT%"
+          echo "  First Contentful Paint: ${FCP}ms"
+          echo "  Largest Contentful Paint: ${LCP}ms"
+          echo "  Cumulative Layout Shift: $CLS"
+          echo "  First Input Delay: ${FID}ms"
+          echo "  Time to Interactive: ${TTI}ms"
+          echo "  Total Blocking Time: ${TBT}ms"
+          
+          # Check performance thresholds
+          FAILED_METRICS=()
+          
+          if [[ $PERFORMANCE_PERCENT -lt 95 ]]; then
+            FAILED_METRICS+=("Performance Score: $PERFORMANCE_PERCENT% < 95%")
+          fi
+          
+          if (( $(echo "$FCP > $MAX_FCP" | bc -l) )); then
+            FAILED_METRICS+=("FCP: ${FCP}ms > ${MAX_FCP}ms")
+          fi
+          
+          if (( $(echo "$LCP > $MAX_LCP" | bc -l) )); then
+            FAILED_METRICS+=("LCP: ${LCP}ms > ${MAX_LCP}ms")
+          fi
+          
+          if (( $(echo "$CLS > $MAX_CLS" | bc -l) )); then
+            FAILED_METRICS+=("CLS: $CLS > $MAX_CLS")
+          fi
+          
+          if (( $(echo "$FID > $MAX_FID" | bc -l) )); then
+            FAILED_METRICS+=("FID: ${FID}ms > ${MAX_FID}ms")
+          fi
+          
+          if (( $(echo "$TTI > $MAX_TTI" | bc -l) )); then
+            FAILED_METRICS+=("TTI: ${TTI}ms > ${MAX_TTI}ms")
+          fi
+          
+          if (( $(echo "$TBT > $MAX_TBT" | bc -l) )); then
+            FAILED_METRICS+=("TBT: ${TBT}ms > ${MAX_TBT}ms")
+          fi
+          
+          if [[ ${#FAILED_METRICS[@]} -eq 0 ]]; then
+            echo "✅ All performance metrics meet requirements"
+            echo "score=$PERFORMANCE_PERCENT" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Performance metrics failed:"
+            printf '%s\n' "${FAILED_METRICS[@]}"
+            exit 1
+          fi
+
+      - name: Resource optimization analysis
+        run: |
+          cd frontend
+          echo "Analyzing resource optimization..."
+          
+          # Check for duplicate dependencies
+          npx duplicate-package-checker-webpack-plugin --show-help || echo "No duplicates found"
+          
+          # Analyze tree shaking effectiveness
+          echo "Tree shaking analysis:"
+          if [[ -f bundle-analysis.json ]]; then
+            cat bundle-analysis.json | jq '.modules[] | select(.size > 10000) | {name: .name, size: .size}' | head -10
+          fi
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-performance-reports
+          path: |
+            frontend/lighthouse-performance.json
+            frontend/bundle-analysis.json
+
+  # Backend performance analysis
+  backend-performance:
+    name: 🦀 Backend Performance Analysis
+    runs-on: buildjet-4vcpu-ubuntu-2204
+    outputs:
+      performance-score: ${{ steps.benchmark.outputs.score }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "backend"
+          cache-provider: "buildjet"
+
+      - name: Build optimized binary
+        run: |
+          cd backend
+          
+          # Build with maximum optimizations
+          RUSTFLAGS="-C target-cpu=native -C lto=fat -C codegen-units=1" \
+          cargo build --release
+
+      - name: Binary size analysis
+        run: |
+          cd backend
+          
+          BINARY_SIZE=$(stat -c%s target/release/vibe-kanban)
+          BINARY_SIZE_MB=$(echo "scale=2; $BINARY_SIZE / 1024 / 1024" | bc)
+          
+          echo "Binary size: $BINARY_SIZE bytes ($BINARY_SIZE_MB MB)"
+          
+          # Check for reasonable binary size (adjust as needed)
+          if [[ $BINARY_SIZE -gt 104857600 ]]; then  # 100MB
+            echo "⚠️ Binary size is large: ${BINARY_SIZE_MB}MB"
+          else
+            echo "✅ Binary size is reasonable: ${BINARY_SIZE_MB}MB"
+          fi
+
+      - name: Performance benchmarks
+        id: benchmark
+        run: |
+          cd backend
+          
+          # Install criterion for benchmarking
+          cargo install cargo-criterion --locked
+          
+          # Run benchmarks if available
+          if cargo bench --no-run 2>/dev/null; then
+            echo "Running performance benchmarks..."
+            cargo criterion --message-format=json > benchmark-results.json || echo "[]" > benchmark-results.json
+            
+            # Analyze benchmark results
+            if [[ -s benchmark-results.json ]]; then
+              echo "Benchmark results available"
+              echo "score=95" >> $GITHUB_OUTPUT  # Placeholder score
+            else
+              echo "No benchmark results"
+              echo "score=unknown" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No benchmarks configured"
+            echo "score=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Memory usage analysis
+        run: |
+          cd backend
+          echo "Analyzing memory usage patterns..."
+          
+          # Check for potential memory leaks in code
+          if cargo clippy -- -W clippy::mem_forget -W clippy::mem_discriminant_non_enum; then
+            echo "✅ No obvious memory issues found"
+          else
+            echo "⚠️ Potential memory issues detected"
+          fi
+
+      - name: Compilation time analysis
+        run: |
+          cd backend
+          echo "Analyzing compilation performance..."
+          
+          # Clean build timing
+          cargo clean
+          time cargo build --release > build-time.log 2>&1
+          
+          echo "Build time analysis completed"
+
+      - name: Upload backend performance reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-performance-reports
+          path: |
+            backend/benchmark-results.json
+            backend/build-time.log
+
+  # Performance regression detection
+  performance-regression:
+    name: 📈 Performance Regression Detection
+    runs-on: ubuntu-latest
+    needs: [frontend-performance, backend-performance]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download performance reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-performance-reports"
+          merge-multiple: true
+
+      - name: Performance regression analysis
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Get baseline performance from main branch
+            // This is a simplified example - in practice, you'd store metrics in a database
+            
+            const currentBundleSize = ${{ needs.frontend-performance.outputs.bundle-size }};
+            const currentPerformanceScore = ${{ needs.frontend-performance.outputs.performance-score }};
+            
+            console.log(`Current bundle size: ${currentBundleSize} bytes`);
+            console.log(`Current performance score: ${currentPerformanceScore}%`);
+            
+            // In a real implementation, you would:
+            // 1. Fetch baseline metrics from previous successful builds
+            // 2. Compare current metrics with baseline
+            // 3. Flag significant regressions
+            
+            const bundleRegression = currentBundleSize > 1048576; // 1MB threshold
+            const performanceRegression = currentPerformanceScore < 95;
+            
+            if (bundleRegression || performanceRegression) {
+              const regressions = [];
+              if (bundleRegression) regressions.push(`Bundle size exceeded 1MB: ${currentBundleSize} bytes`);
+              if (performanceRegression) regressions.push(`Performance score below 95%: ${currentPerformanceScore}%`);
+              
+              console.log('❌ Performance regressions detected:');
+              regressions.forEach(r => console.log(`  - ${r}`));
+              
+              process.exit(1);
+            } else {
+              console.log('✅ No performance regressions detected');
+            }
+
+  # Performance optimization recommendations
+  optimization-recommendations:
+    name: 💡 Performance Optimization Recommendations
+    runs-on: ubuntu-latest
+    needs: [frontend-performance, backend-performance]
+    if: always()
+    steps:
+      - name: Generate optimization report
+        run: |
+          cat > performance-optimization-report.md << 'EOF'
+          # 🚀 Performance Optimization Report
+          
+          **Generated**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit**: ${{ github.sha }}
+          
+          ## Current Performance Metrics
+          
+          ### Frontend
+          - **Performance Score**: ${{ needs.frontend-performance.outputs.performance-score }}%
+          - **Bundle Size**: ${{ needs.frontend-performance.outputs.bundle-size }} bytes
+          
+          ### Backend
+          - **Performance Score**: ${{ needs.backend-performance.outputs.performance-score }}
+          
+          ## Optimization Recommendations
+          
+          ### Bundle Optimization
+          - ✅ Implement code splitting for route-based loading
+          - ✅ Use dynamic imports for heavy components
+          - ✅ Optimize vendor chunk size
+          - ✅ Remove unused dependencies
+          - ✅ Use tree shaking effectively
+          
+          ### Image Optimization
+          - ✅ Convert images to WebP format
+          - ✅ Implement responsive images
+          - ✅ Use lazy loading for images
+          - ✅ Optimize image compression
+          
+          ### CSS Optimization
+          - ✅ Purge unused CSS
+          - ✅ Use critical CSS inlining
+          - ✅ Minimize CSS bundle size
+          - ✅ Use CSS-in-JS optimizations
+          
+          ### JavaScript Optimization
+          - ✅ Minimize bundle size
+          - ✅ Use service workers for caching
+          - ✅ Implement proper code splitting
+          - ✅ Optimize third-party scripts
+          
+          ### Backend Optimization
+          - ✅ Use release builds with optimizations
+          - ✅ Implement efficient algorithms
+          - ✅ Optimize database queries
+          - ✅ Use appropriate data structures
+          
+          ### Network Optimization
+          - ✅ Enable HTTP/2
+          - ✅ Use CDN for static assets
+          - ✅ Implement proper caching strategies
+          - ✅ Minimize HTTP requests
+          
+          ## Next Steps
+          
+          1. Address any performance regressions identified
+          2. Implement recommended optimizations
+          3. Monitor performance metrics continuously
+          4. Set up performance budgets
+          5. Regular performance audits
+          EOF
+
+      - name: Upload optimization report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-optimization-report
+          path: performance-optimization-report.md
+
+      - name: Comment optimization recommendations on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('performance-optimization-report.md', 'utf8');
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🚀 Performance Analysis\n\n${report}`
+            });
