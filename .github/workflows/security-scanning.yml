@@ -74,7 +74,7 @@ jobs:
         run: |
           cd backend
           cargo install cargo-audit --locked
-          cargo audit --file ../Cargo.lock --json > ../backend-audit.json || true
+          cargo audit --file "$GITHUB_WORKSPACE/Cargo.lock" --json > ../backend-audit.json || true
 
       - name: Backend dependency check
         run: |
