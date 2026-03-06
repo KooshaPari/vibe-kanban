@@ -215,7 +215,7 @@ jobs:
         run: |
           cd backend
           cargo install cargo-audit --locked
-          cargo audit
+          cargo audit --file ../Cargo.lock
 
       - name: Vulnerability check
         run: |

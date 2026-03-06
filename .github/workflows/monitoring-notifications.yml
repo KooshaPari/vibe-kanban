@@ -188,7 +188,7 @@ jobs:
           cargo outdated --format json > ../backend-outdated.json || true
           
           cargo install cargo-audit --locked
-          cargo audit --json > ../backend-audit.json || true
+          cargo audit --file ../Cargo.lock --json > ../backend-audit.json || true
           
           BACKEND_OUTDATED=$(cat ../backend-outdated.json | jq '.dependencies | length // 0')
           BACKEND_SECURITY=$(cat ../backend-audit.json | jq '.vulnerabilities | length // 0')

@@ -507,10 +507,11 @@ jobs:
           cd frontend
           echo "Testing keyboard navigation..."
           # This would typically require a more sophisticated E2E test
-          # For now, we'll validate that interactive elements have proper tab indices
-          
-          if grep -r "tabindex=\"-1\"" dist/ && ! grep -r "aria-hidden=\"true\"" dist/; then
-            echo "❌ Found potentially inaccessible elements with tabindex='-1'"
+          # Restrict the heuristic to built HTML so minified JS bundles do not trip false positives.
+          HTML_FILES=$(find dist -type f \( -name "*.html" -o -name "*.htm" \))
+
+          if [[ -n "$HTML_FILES" ]] && grep -Hn 'tabindex="-1"' $HTML_FILES >/dev/null; then
+            echo "❌ Found potentially inaccessible elements with tabindex='-1' in built HTML"
             exit 1
           fi
           
