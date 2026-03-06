@@ -229,7 +229,8 @@ jobs:
         run: |
           cd backend
           cargo install cargo-cyclonedx --locked
-          cargo cyclonedx --format json --output ../backend-sbom.json
+          cargo cyclonedx --format json --override-filename backend-sbom.json
+          mv backend-sbom.json ../backend-sbom.json
 
       - name: Generate project SBOM
         uses: anchore/sbom-action@v0

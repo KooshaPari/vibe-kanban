@@ -425,12 +425,7 @@ jobs:
       - name: Build frontend
         run: |
           cd frontend
-          npm run build
-
-      - name: Install accessibility testing tools
-        run: |
-          cd frontend
-          npm install --save-dev @axe-core/cli axe-playwright pa11y lighthouse
+          pnpm build
 
       - name: Sync ChromeDriver
         run: npx browser-driver-manager install chrome
@@ -438,7 +433,7 @@ jobs:
       - name: Start test server
         run: |
           cd frontend
-          npx serve -s dist -p 3000 &
+          pnpm dlx serve -s dist -p 3000 &
           sleep 10
           curl -f http://localhost:3000 || (echo "Server failed to start" && exit 1)
 
@@ -450,7 +445,7 @@ jobs:
           
           # 1. Axe Core testing with strict rules
           echo "Running axe-core tests..."
-          npx axe http://localhost:3000 \
+          pnpm dlx @axe-core/cli http://localhost:3000 \
             --save axe-results.json \
             --exit \
             --verbose \
@@ -459,7 +454,7 @@ jobs:
           
           # 2. Pa11y testing
           echo "Running pa11y tests..."
-          npx pa11y http://localhost:3000 \
+          pnpm dlx pa11y http://localhost:3000 \
             --standard WCAG2AA \
             --level error \
             --reporter json > pa11y-results.json
@@ -474,7 +469,7 @@ jobs:
           
           # 3. Lighthouse accessibility audit
           echo "Running Lighthouse accessibility audit..."
-          npx lighthouse http://localhost:3000 \
+          pnpm dlx lighthouse http://localhost:3000 \
             --only-categories=accessibility \
             --output=json \
             --output-path=lighthouse-a11y.json \
