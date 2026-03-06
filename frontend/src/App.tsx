@@ -151,7 +151,7 @@ function AppContent() {
           onComplete={handlePrivacyOptInComplete}
         />
         {showNavbar && <Navbar />}
-        <div className="flex-1 overflow-y-scroll">
+        <main id="main-content" className="flex-1 overflow-y-scroll">
           <SentryRoutes>
             <Route path="/" element={<Projects />} />
             <Route path="/projects" element={<Projects />} />
@@ -168,7 +168,7 @@ function AppContent() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/mcp-servers" element={<McpServers />} />
           </SentryRoutes>
-        </div>
+        </main>
       </div>
     </ThemeProvider>
   );

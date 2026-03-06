@@ -13,12 +13,12 @@ export function Navbar() {
   const location = useLocation();
 
   return (
-    <div className="border-b">
+    <header className="border-b">
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-6">
             <Logo />
-            <div className="flex items-center space-x-1">
+            <nav aria-label="Primary" className="flex items-center space-x-1">
               <Button
                 asChild
                 variant={
@@ -55,9 +55,9 @@ export function Navbar() {
                   Settings
                 </Link>
               </Button>
-            </div>
+            </nav>
           </div>
-          <div className="flex items-center space-x-1">
+          <nav aria-label="Resources" className="flex items-center space-x-1">
             <Button asChild variant="ghost" size="sm">
               <a
                 href="https://vibekanban.com/"
@@ -78,9 +78,9 @@ export function Navbar() {
                 Support
               </a>
             </Button>
-          </div>
+          </nav>
         </div>
       </div>
-    </div>
+    </header>
   );
 }

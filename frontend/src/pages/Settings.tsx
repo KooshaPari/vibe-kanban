@@ -129,12 +129,12 @@ export function Settings() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="space-y-6">
-        <div>
+        <header>
           <h1 className="text-3xl font-bold">Settings</h1>
           <p className="text-muted-foreground">
             Configure your preferences and application settings.
           </p>
-        </div>
+        </header>
 
         {error && (
           <Alert variant="destructive">

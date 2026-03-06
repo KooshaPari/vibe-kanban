@@ -138,7 +138,7 @@ export function ProjectList() {
 
   return (
     <div className="space-y-6 p-8">
-      <div className="flex justify-between items-center">
+      <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
           <p className="text-muted-foreground">
@@ -149,7 +149,7 @@ export function ProjectList() {
           <Plus className="mr-2 h-4 w-4" />
           Create Project
         </Button>
-      </div>
+      </header>
 
       {error && (
         <Alert variant="destructive">
@@ -169,7 +169,7 @@ export function ProjectList() {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
               <Plus className="h-6 w-6" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold">No projects yet</h3>
+            <h2 className="mt-4 text-lg font-semibold">No projects yet</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Get started by creating your first project.
             </p>

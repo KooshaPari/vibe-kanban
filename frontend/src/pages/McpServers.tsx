@@ -275,12 +275,12 @@ export function McpServers() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="space-y-6">
-        <div>
+        <header>
           <h1 className="text-3xl font-bold">MCP Servers</h1>
           <p className="text-muted-foreground">
             Configure MCP servers to extend executor capabilities.
           </p>
-        </div>
+        </header>
 
         {mcpError && (
           <Alert variant="destructive">
@@ -330,21 +330,21 @@ export function McpServers() {
             </div>
 
             {mcpError && mcpError.includes('does not support MCP') ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
-                <div className="flex">
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                      MCP Not Supported
-                    </h3>
-                    <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
-                      <p>{mcpError}</p>
-                      <p className="mt-1">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+                  <div className="flex">
+                    <div className="ml-3">
+                      <h2 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                        MCP Not Supported
+                      </h2>
+                      <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                        <p>{mcpError}</p>
+                        <p className="mt-1">
                         To use MCP servers, please select a different executor
                         (Claude, Amp, or Gemini) above.
                       </p>
+                      </div>
                     </div>
                   </div>
-                </div>
               </div>
             ) : (
               <div className="space-y-2">
