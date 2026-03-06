@@ -521,15 +521,22 @@ jobs:
         run: |
           cd frontend
           echo "Simulating screen reader compatibility..."
+          HTML_FILES=$(find dist -type f \( -name "*.html" -o -name "*.htm" \))
           
-          # Check for proper ARIA labels and semantic HTML
-          MISSING_ALT=$(grep -r "<img" dist/ | grep -v "alt=" | wc -l)
+          # Check for proper ARIA labels and semantic HTML in built HTML, not bundled JS assets.
+          MISSING_ALT=0
+          if [[ -n "$HTML_FILES" ]]; then
+            MISSING_ALT=$(grep -Hn "<img" $HTML_FILES | grep -v "alt=" | wc -l)
+          fi
           if [[ $MISSING_ALT -gt 0 ]]; then
             echo "❌ Found $MISSING_ALT images without alt attributes"
             exit 1
           fi
           
-          MISSING_LABELS=$(grep -r "<input\|<button\|<select\|<textarea" dist/ | grep -v "aria-label\|aria-labelledby\|<label" | wc -l)
+          MISSING_LABELS=0
+          if [[ -n "$HTML_FILES" ]]; then
+            MISSING_LABELS=$(grep -Hn "<input\\|<button\\|<select\\|<textarea" $HTML_FILES | grep -v "aria-label\\|aria-labelledby\\|<label" | wc -l)
+          fi
           if [[ $MISSING_LABELS -gt 0 ]]; then
             echo "❌ Found $MISSING_LABELS form elements without proper labels"
             exit 1
