@@ -429,6 +429,9 @@ jobs:
 
       - name: Sync ChromeDriver
         run: npx browser-driver-manager install chrome
+
+      - name: Install Chrome for Puppeteer tools
+        run: pnpm dlx puppeteer browsers install chrome
           
       - name: Start test server
         run: |
