@@ -8,7 +8,7 @@ WORKDIR /app/frontend
 RUN npm install -g pnpm@10.8.1
 
 # Copy package files
-COPY frontend/package*.json frontend/pnpm-lock.yaml ./
+COPY frontend/package*.json pnpm-lock.yaml ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -29,22 +29,25 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app/backend
+# Ensure backend builds with workspace root context
+WORKDIR /app
 
 # Copy Cargo files
-COPY backend/Cargo.toml backend/Cargo.lock ./
+COPY Cargo.toml Cargo.lock ./
+COPY backend/Cargo.toml backend/
 
 # Create dummy main.rs to cache dependencies
-RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN mkdir -p backend/src && echo "fn main() {}" > backend/src/main.rs
 
 # Build dependencies (this will be cached)
-RUN cargo build --release
+RUN cd backend && cargo generate-lockfile --manifest-path Cargo.toml
+RUN cd backend && cargo build --release
 
 # Copy source code
 COPY backend/ ./
 
 # Build the actual application
-RUN touch src/main.rs && cargo build --release
+RUN cd backend && touch src/main.rs && cargo build --release
 
 # Stage 3: Runtime image
 FROM debian:bookworm-slim

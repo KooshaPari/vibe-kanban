@@ -187,9 +187,9 @@ jobs:
           cargo install cargo-outdated --locked
           cargo outdated --format json > ../backend-outdated.json || true
           
-          cargo generate-lockfile --manifest-path backend/Cargo.toml
+          cargo generate-lockfile --manifest-path Cargo.toml
           cargo install cargo-audit --locked
-          cargo audit --file "$GITHUB_WORKSPACE/Cargo.lock" --json > ../backend-audit.json || true
+          cargo audit --file Cargo.lock --json > ../backend-audit.json || true
           
           BACKEND_OUTDATED=$(cat ../backend-outdated.json | jq '.dependencies | length // 0')
           BACKEND_SECURITY=$(cat ../backend-audit.json | jq '.vulnerabilities | length // 0')

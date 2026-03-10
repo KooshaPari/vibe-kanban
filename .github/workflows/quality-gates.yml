@@ -681,13 +681,19 @@ jobs:
 
       - name: Set quality gate status
         run: |
-          # Determine overall quality gate status
-          if [[ "${{ needs.frontend-quality-gates.outputs.coverage-status }}" == "passed" ]] && \
-             [[ "${{ needs.frontend-quality-gates.outputs.bundle-size-status }}" == "passed" ]] && \
-             [[ "${{ needs.backend-quality-gates.outputs.coverage-status }}" == "passed" ]]; then
-            echo "🎯 All quality gates passed!"
-            exit 0
-          else
-            echo "❌ Quality gates failed!"
+          # Treat "failed" as blocking. "unknown" and skipped checks are non-blocking here
+          # to avoid false negatives when required jobs are intentionally not executed.
+          if [[ "${{ needs.frontend-quality-gates.outputs.coverage-status }}" == "failed" || \
+                "${{ needs.frontend-quality-gates.outputs.bundle-size-status }}" == "failed" || \
+                "${{ needs.frontend-quality-gates.outputs.complexity-status }}" == "failed" || \
+                "${{ needs.backend-quality-gates.outputs.coverage-status }}" == "failed" || \
+                "${{ needs.backend-quality-gates.outputs.complexity-status }}" == "failed" || \
+                "${{ needs.accessibility-testing.result }}" == "failure" || \
+                "${{ needs.documentation-quality.result }}" == "failure" || \
+                "${{ needs.performance-benchmarks.result }}" == "failure" ]]; then
+            echo "❌ Quality gates failed"
             exit 1
           fi
+
+          echo "✅ Quality gate checks completed without hard failures"
+          exit 0
