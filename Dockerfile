@@ -32,8 +32,7 @@ RUN apt-get update && apt-get install -y \
 # Ensure backend builds with workspace root context
 WORKDIR /app
 
-# Copy Cargo files
-COPY Cargo.toml Cargo.lock ./
+# Copy backend Cargo manifest
 COPY backend/Cargo.toml backend/
 
 # Create dummy main.rs to cache dependencies
