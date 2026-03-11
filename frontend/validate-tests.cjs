@@ -69,7 +69,6 @@ function checkTestSections(filePath, requiredSections) {
   }
   
   const content = fs.readFileSync(fullPath, 'utf-8');
-  const fileName = path.basename(filePath);
   
   let allSectionsFound = true;
   requiredSections.forEach(section => {

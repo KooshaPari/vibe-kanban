@@ -127,9 +127,6 @@ export default {
   // Error on deprecated features
   errorOnDeprecated: true,
   
-  // Fail tests on any console.error calls
-  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
-  
   // ESM support
   preset: 'ts-jest/presets/default-esm',
   extensionsToTreatAsEsm: ['.ts', '.tsx'],

@@ -253,6 +253,14 @@ export class TestErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
+      if (this.state.error) {
+        return (
+          <div data-testid="error-boundary">
+            Something went wrong: {this.state.error.message}
+          </div>
+        );
+      }
+
       return <div data-testid="error-boundary">Something went wrong</div>;
     }
 

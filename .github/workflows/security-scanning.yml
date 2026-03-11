@@ -192,6 +192,14 @@ jobs:
 
       - name: GitLeaks scan
         uses: gitleaks/gitleaks-action@v2
+        with:
+          args: >-
+            --redact
+            -v
+            --no-git
+            --exit-code=2
+            --report-format=sarif
+            --report-path=gitleaks-results.sarif
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

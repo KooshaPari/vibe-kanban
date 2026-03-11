@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 const { spawn } = require('child_process');
-const path = require('path');
 
 const TEST_SUITES = {
   pages: 'src/__tests__/integration/pages',
@@ -95,9 +94,9 @@ Examples:
 Available test files:
 `);
 
-  Object.entries(TEST_SUITES).forEach(([suite, path]) => {
+  Object.entries(TEST_SUITES).forEach(([suite, suitePath]) => {
     if (suite !== 'all') {
-      console.log(`  ${suite.padEnd(10)} ${path}`);
+      console.log(`  ${suite.padEnd(10)} ${suitePath}`);
     }
   });
 

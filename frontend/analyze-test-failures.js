@@ -42,7 +42,6 @@ const failureCategories = {
 
 // Extract failing test files and their errors
 const failLines = testOutput.split('\n').filter(line => line.includes('FAIL '));
-const errorSections = testOutput.split('●').slice(1);
 
 console.log(`📊 Found ${failLines.length} failing test suites\n`);
 
