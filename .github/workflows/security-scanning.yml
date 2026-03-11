@@ -191,17 +191,25 @@ jobs:
           fetch-depth: 0
 
       - name: GitLeaks scan
-        uses: gitleaks/gitleaks-action@v2
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            ghcr.io/gitleaks/gitleaks:latest \
+            detect \
+            --source=/workspace \
+            --redact \
+            -v \
+            --no-git \
+            --exit-code=2 \
+            --report-format=sarif \
+            --report-path=/workspace/gitleaks-results.sarif
+
+      - name: Upload GitLeaks report
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          args: >-
-            --redact
-            -v
-            --no-git
-            --exit-code=2
-            --report-format=sarif
-            --report-path=gitleaks-results.sarif
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: gitleaks-results
+          path: gitleaks-results.sarif
 
       - name: TruffleHog scan
         uses: trufflesecurity/trufflehog@main
