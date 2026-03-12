@@ -16,6 +16,7 @@ RUN cd frontend && pnpm install --frozen-lockfile
 
 # Copy source code
 COPY frontend/ frontend/
+COPY shared/ shared/
 
 # Build frontend
 RUN cd frontend && pnpm build
