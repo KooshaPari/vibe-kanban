@@ -26,6 +26,7 @@ FROM rust:1.89.0-slim AS backend-builder
 
 # Install required system dependencies
 RUN apt-get update && apt-get install -y \
+    perl \
     pkg-config \
     libssl-dev \
     libsqlite3-dev \
