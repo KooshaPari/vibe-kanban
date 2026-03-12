@@ -46,6 +46,7 @@ FROM debian:bookworm-slim
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    curl \
     libssl3 \
     libsqlite3-0 \
     && rm -rf /var/lib/apt/lists/*
@@ -59,7 +60,7 @@ WORKDIR /app
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Copy built backend
-COPY --from=backend-builder /app/backend/target/release/vibe-kanban ./vibe-kanban
+COPY --from=backend-builder /app/target/release/vibe-kanban ./vibe-kanban
 
 # Set ownership
 RUN chown -R vibe-kanban:vibe-kanban /app
