@@ -2,22 +2,23 @@
 # Stage 1: Build frontend
 FROM node:22-alpine AS frontend-builder
 
-WORKDIR /app/frontend
+WORKDIR /app
 
 # Install pnpm
 RUN npm install -g pnpm@10.8.1
 
-# Copy package files
-COPY frontend/package*.json pnpm-lock.yaml ./
+# Copy workspace-level package configuration required for lockfile overrides
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package*.json frontend/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN cd frontend && pnpm install --frozen-lockfile
 
 # Copy source code
-COPY frontend/ ./
+COPY frontend/ frontend/
 
 # Build frontend
-RUN pnpm build
+RUN cd frontend && pnpm build
 
 # Stage 2: Build backend
 FROM rust:1.75-slim AS backend-builder
