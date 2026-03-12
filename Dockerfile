@@ -21,7 +21,7 @@ COPY frontend/ frontend/
 RUN cd frontend && pnpm build
 
 # Stage 2: Build backend
-FROM rust:1.75-slim AS backend-builder
+FROM rust:1.89.0-slim AS backend-builder
 
 # Install required system dependencies
 RUN apt-get update && apt-get install -y \
