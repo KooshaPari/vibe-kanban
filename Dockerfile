@@ -33,21 +33,12 @@ RUN apt-get update && apt-get install -y \
 # Ensure backend builds with workspace root context
 WORKDIR /app
 
-# Copy backend Cargo manifest
-COPY backend/Cargo.toml backend/
-
-# Create dummy main.rs to cache dependencies
-RUN mkdir -p backend/src && echo "fn main() {}" > backend/src/main.rs
-
-# Build dependencies (this will be cached)
-RUN cd backend && cargo generate-lockfile --manifest-path Cargo.toml
-RUN cd backend && cargo build --release
-
-# Copy source code
-COPY backend/ ./
-
-# Build the actual application
-RUN cd backend && touch src/main.rs && cargo build --release
+# Copy workspace-level Rust manifest files
+COPY Cargo.toml ./
+COPY .cargo ./
+# Copy backend source and build from the workspace root so workspace deps resolve
+COPY backend/ backend/
+RUN cargo build --release --manifest-path backend/Cargo.toml
 
 # Stage 3: Runtime image
 FROM debian:bookworm-slim
