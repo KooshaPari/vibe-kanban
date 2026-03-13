@@ -18,6 +18,7 @@ use crate::{
         },
         ApiResponse,
     },
+    utils::path::normalize_user_path,
 };
 
 pub async fn get_projects(
@@ -118,7 +119,10 @@ pub async fn create_project(
     }
 
     // Validate and setup git repository
-    let path = std::path::Path::new(&payload.git_repo_path);
+    let path = match normalize_user_path(&payload.git_repo_path) {
+        Ok(path) => path,
+        Err(error) => return Ok(ResponseJson(ApiResponse::error(&error))),
+    };
 
     if payload.use_existing_repo {
         // For existing repos, validate that the path exists and is a git repository
@@ -144,7 +148,7 @@ pub async fn create_project(
 
         // Create directory if it doesn't exist
         if !path.exists() {
-            if let Err(e) = std::fs::create_dir_all(path) {
+            if let Err(e) = std::fs::create_dir_all(&path) {
                 tracing::error!("Failed to create directory: {}", e);
                 return Ok(ResponseJson(ApiResponse::error(&format!(
                     "Failed to create directory: {}",
@@ -157,7 +161,7 @@ pub async fn create_project(
         if !path.join(".git").exists() {
             match std::process::Command::new("git")
                 .arg("init")
-                .current_dir(path)
+                .current_dir(&path)
                 .output()
             {
                 Ok(output) => {
@@ -381,11 +385,9 @@ async fn search_files_in_repo(
     repo_path: &str,
     query: &str,
 ) -> Result<Vec<SearchResult>, Box<dyn std::error::Error + Send + Sync>> {
-    use std::path::Path;
-
     use ignore::WalkBuilder;
 
-    let repo_path = Path::new(repo_path);
+    let repo_path = normalize_user_path(repo_path).map_err(std::io::Error::other)?;
 
     if !repo_path.exists() {
         return Err("Repository path does not exist".into());
@@ -395,7 +397,7 @@ async fn search_files_in_repo(
     let query_lower = query.to_lowercase();
 
     // Use ignore::WalkBuilder to respect gitignore files
-    let walker = WalkBuilder::new(repo_path)
+    let walker = WalkBuilder::new(&repo_path)
         .git_ignore(true)
         .git_global(true)
         .git_exclude(true)
@@ -407,11 +409,11 @@ async fn search_files_in_repo(
         let path = entry.path();
 
         // Skip the root directory itself
-        if path == repo_path {
+        if path == repo_path.as_path() {
             continue;
         }
 
-        let relative_path = path.strip_prefix(repo_path)?;
+        let relative_path = path.strip_prefix(&repo_path)?;
 
         // Skip .git directory and its contents
         if relative_path

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 /// Convert absolute paths to relative paths based on worktree path
 /// This is a robust implementation that handles symlinks and edge cases
@@ -69,6 +69,44 @@ pub fn make_path_relative(path: &str, worktree_path: &str) -> String {
     }
 }
 
+pub fn normalize_user_path(path: &str) -> Result<PathBuf, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
+
+    let raw_path = Path::new(trimmed);
+    if !raw_path.is_absolute() {
+        return Err("Path must be absolute".to_string());
+    }
+
+    if raw_path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err("Path cannot contain parent directory traversal".to_string());
+    }
+
+    if raw_path.exists() {
+        return raw_path
+            .canonicalize()
+            .map_err(|e| format!("Failed to resolve path: {}", e));
+    }
+
+    let file_name = raw_path
+        .file_name()
+        .ok_or_else(|| "Path must include a final directory or file name".to_string())?;
+    let parent = raw_path
+        .parent()
+        .ok_or_else(|| "Path must include a parent directory".to_string())?;
+
+    let canonical_parent = parent
+        .canonicalize()
+        .map_err(|e| format!("Parent directory does not exist or is inaccessible: {}", e))?;
+
+    Ok(canonical_parent.join(file_name))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,5 +130,17 @@ mod tests {
             make_path_relative("/other/path/file.js", "/tmp/test-worktree"),
             "/other/path/file.js"
         );
+    }
+
+    #[test]
+    fn test_normalize_user_path_rejects_relative_paths() {
+        let error = normalize_user_path("relative/path").unwrap_err();
+        assert_eq!(error, "Path must be absolute");
+    }
+
+    #[test]
+    fn test_normalize_user_path_rejects_parent_traversal() {
+        let error = normalize_user_path("/tmp/../etc/passwd").unwrap_err();
+        assert_eq!(error, "Path cannot contain parent directory traversal");
     }
 }

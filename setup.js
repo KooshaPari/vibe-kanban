@@ -199,15 +199,14 @@ try {
 } catch (error) {
   process.exit(error.status || 1);
 }
-`;
+		`;
 
-	fs.writeFileSync(cargoWrapperPath, cargoWrapperContent);
-	execSync(`chmod +x "${cargoWrapperPath}"`);
-	log("Created worktree-specific cargo wrapper");
+		fs.writeFileSync(cargoWrapperPath, cargoWrapperContent);
+		fs.chmodSync(cargoWrapperPath, 0o755);
+		log("Created worktree-specific cargo wrapper");
 
-	// Update package.json to use the worktree-specific cargo wrapper
-	const packageJsonPath = path.join(worktreePath, "package.json");
-	if (fs.existsSync(packageJsonPath)) {
+		// Update package.json to use the worktree-specific cargo wrapper
+		const packageJsonPath = path.join(worktreePath, "package.json");
 		try {
 			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 
@@ -219,9 +218,10 @@ try {
 				log("Updated package.json to use worktree-specific cargo wrapper");
 			}
 		} catch (e) {
-			error("Failed to update package.json cargo script");
+			if (e.code !== "ENOENT") {
+				error("Failed to update package.json cargo script");
+			}
 		}
-	}
 
 	log("Worktree setup complete!");
 	log("You can now run: npm run dev");

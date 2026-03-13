@@ -1,6 +1,6 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use axum::{
@@ -9,7 +9,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{app_state::AppState, models::ApiResponse};
+use crate::{app_state::AppState, models::ApiResponse, utils::path::normalize_user_path};
 
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
@@ -53,7 +53,10 @@ pub async fn list_directory(
             .to_string()
     });
 
-    let path = Path::new(&path_str);
+    let path = match normalize_user_path(&path_str) {
+        Ok(path) => path,
+        Err(error) => return Ok(ResponseJson(ApiResponse::error(&error))),
+    };
 
     if !path.exists() {
         return Ok(ResponseJson(ApiResponse::error("Directory does not exist")));
@@ -63,7 +66,7 @@ pub async fn list_directory(
         return Ok(ResponseJson(ApiResponse::error("Path is not a directory")));
     }
 
-    match fs::read_dir(path) {
+    match fs::read_dir(&path) {
         Ok(entries) => {
             let mut directory_entries = Vec::new();
 
@@ -119,7 +122,10 @@ pub async fn validate_git_path(
     Query(query): Query<ListDirectoryQuery>,
 ) -> Result<ResponseJson<ApiResponse<bool>>, StatusCode> {
     let path_str = query.path.ok_or(StatusCode::BAD_REQUEST)?;
-    let path = Path::new(&path_str);
+    let path = match normalize_user_path(&path_str) {
+        Ok(path) => path,
+        Err(error) => return Ok(ResponseJson(ApiResponse::error(&error))),
+    };
 
     // Check if path exists and is a git repo
     let is_valid_git_repo = path.exists() && path.is_dir() && path.join(".git").exists();
@@ -131,11 +137,14 @@ pub async fn create_git_repo(
     Query(query): Query<ListDirectoryQuery>,
 ) -> Result<ResponseJson<ApiResponse<()>>, StatusCode> {
     let path_str = query.path.ok_or(StatusCode::BAD_REQUEST)?;
-    let path = Path::new(&path_str);
+    let path = match normalize_user_path(&path_str) {
+        Ok(path) => path,
+        Err(error) => return Ok(ResponseJson(ApiResponse::error(&error))),
+    };
 
     // Create directory if it doesn't exist
     if !path.exists() {
-        if let Err(e) = fs::create_dir_all(path) {
+        if let Err(e) = fs::create_dir_all(&path) {
             tracing::error!("Failed to create directory: {}", e);
             return Ok(ResponseJson(ApiResponse::error(&format!(
                 "Failed to create directory: {}",
@@ -152,7 +161,7 @@ pub async fn create_git_repo(
     // Initialize git repository
     match std::process::Command::new("git")
         .arg("init")
-        .current_dir(path)
+        .current_dir(&path)
         .output()
     {
         Ok(output) => {
