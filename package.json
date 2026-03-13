@@ -1,19 +1,18 @@
 {
   "name": "vibe-kanban",
-  "version": "0.0.48",
+  "version": "0.0.53",
   "private": true,
   "scripts": {
     "dev": "export FRONTEND_PORT=$(node scripts/setup-dev-environment.js frontend) && export BACKEND_PORT=$(node scripts/setup-dev-environment.js backend) && concurrently \"npm run backend:dev:watch\" \"npm run frontend:dev\"",
-    "dev:desktop":"export FRONTEND_PORT=$(node scripts/setup-dev-environment.js frontend) && export BACKEND_PORT=$(node scripts/setup-dev-environment.js backend) && concurrently \"npm run backend:dev:watch\" \"npm run desktop:dev\"", 
     "build": "npm run frontend:build && npm run backend:build",
     "build:single": "npm run frontend:build && npm run backend:build:single",
     "build:npm": "./build-npm-package.sh",
     "test:npm": "./test-npm-package.sh",
     "frontend:dev": "cd frontend && npm run dev -- --port ${FRONTEND_PORT:-3000} --open",
     "frontend:build": "cd frontend && npm run build",
-    "cargo": "node scripts/cargo.js",
+    "cargo": "node scripts/cargo-worktree.js",
     "backend:dev": "BACKEND_PORT=$(node scripts/setup-dev-environment.js backend) npm run backend:dev:watch",
-    "backend:dev:watch": "DISABLE_WORKTREE_ORPHAN_CLEANUP=1 npm run cargo -- watch -w backend -x 'run --manifest-path backend/Cargo.toml'",
+    "backend:dev:watch": "DISABLE_WORKTREE_ORPHAN_CLEANUP=1 npm run cargo -- watch -w backend -x run",
     "backend:build": "npm run cargo -- build --release --manifest-path backend/Cargo.toml && npm run cargo -- build --release --bin mcp_task_server --manifest-path backend/Cargo.toml",
     "backend:build:single": "npm run cargo -- build --release --manifest-path backend/Cargo.toml",
     "backend:run": "npm run cargo -- run --manifest-path backend/Cargo.toml",
@@ -21,22 +20,23 @@
     "generate-types": "cd backend && cargo run --bin generate_types",
     "generate-types:check": "cd backend && cargo run --bin generate_types -- --check",
     "prepare-db": "node scripts/prepare-db.js",
-    "dev:clear-ports": "node scripts/setup-dev-environment.js clear",
-    "tauri:dev": "npx tauri dev",
-    "tauri:build": "npx tauri build",
-    "desktop:dev": "node scripts/run-desktop-dev.js",
-    "desktop:build": "npm run tauri:build",
-    "desktop:build:release": "npm run frontend:build && npm run tauri:build",
-    "desktop:test": "npm run frontend:build && cd src-tauri && cargo test"
+    "dev:clear-ports": "node scripts/setup-dev-environment.js clear"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.6.2",
     "concurrently": "^8.2.2",
-    "playwright": "^1.54.1",
     "vite": "^6.3.5"
   },
   "engines": {
     "node": ">=18",
     "pnpm": ">=8"
+  },
+  "pnpm": {
+    "overrides": {
+      "glob@10.4.5": "10.5.0",
+      "mdast-util-to-hast@13.2.0": "13.2.1",
+      "minimatch@8.0.4": "8.0.6",
+      "minimatch@8.0.5": "8.0.6",
+      "minimatch@9.0.5": "9.0.7"
+    }
   }
 }

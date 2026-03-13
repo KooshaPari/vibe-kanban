@@ -31,7 +31,7 @@ function DeleteFileConfirmationDialog() {
 
     try {
       await attemptsApi.deleteFile(
-        projectId!,
+        projectId,
         selectedAttempt.task_id,
         selectedAttempt.id,
         fileToDelete

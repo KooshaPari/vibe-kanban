@@ -9,7 +9,8 @@ import {
 import type { TaskWithAttemptStatus } from 'shared/types';
 import DiffTab from '@/components/tasks/TaskDetails/DiffTab.tsx';
 import LogsTab from '@/components/tasks/TaskDetails/LogsTab.tsx';
-import { VisualizationsTab } from '@/components/tasks/TaskDetails/VisualizationsTab.tsx';
+import GalleryTab from '@/components/tasks/TaskDetails/GalleryTab.tsx';
+import RelatedTasksTab from '@/components/tasks/TaskDetails/RelatedTasksTab.tsx';
 import DeleteFileConfirmationDialog from '@/components/tasks/DeleteFileConfirmationDialog.tsx';
 import TabNavigation from '@/components/tasks/TaskDetails/TabNavigation.tsx';
 import CollapsibleToolbar from '@/components/tasks/TaskDetails/CollapsibleToolbar.tsx';
@@ -37,14 +38,15 @@ export function TaskDetailsPanel({
   const [showEditorDialog, setShowEditorDialog] = useState(false);
 
   // Tab and collapsible state
-  const [activeTab, setActiveTab] = useState<'logs' | 'diffs' | 'visualizations'>('logs');
-  const [userSelectedTab, setUserSelectedTab] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<
+    'logs' | 'diffs' | 'gallery' | 'related'
+  >('logs');
+  const [_userSelectedTab, setUserSelectedTab] = useState<boolean>(false);
 
   // Reset to logs tab when task changes
   useEffect(() => {
     if (task?.id) {
       setActiveTab('logs');
-      setUserSelectedTab(true); // Treat this as a user selection to prevent auto-switching
     }
   }, [task?.id]);
 
@@ -68,12 +70,12 @@ export function TaskDetailsPanel({
     <>
       {!task ? null : (
         <TaskDetailsProvider
+          key={task.id}
           task={task}
           projectId={projectId}
-          setShowEditorDialog={setShowEditorDialog}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          userSelectedTab={userSelectedTab}
+          setShowEditorDialog={setShowEditorDialog}
           projectHasDevScript={projectHasDevScript}
         >
           {/* Backdrop - only on smaller screens (overlay mode) */}
@@ -98,18 +100,34 @@ export function TaskDetailsPanel({
 
               {/* Tab Content */}
               <div
-                className={`flex-1 flex flex-col min-h-0 ${activeTab === 'logs' ? 'p-4' : activeTab === 'visualizations' ? '' : 'pt-4'}`}
+                className={`flex-1 flex flex-col min-h-0 ${
+                  activeTab === 'gallery'
+                    ? 'overflow-hidden'
+                    : 'overflow-hidden'
+                } ${activeTab === 'logs' ? 'p-4' : activeTab === 'gallery' ? '' : 'pt-4'}`}
               >
                 {activeTab === 'diffs' ? (
                   <DiffTab />
-                ) : activeTab === 'visualizations' ? (
-                  <VisualizationsTab />
+                ) : activeTab === 'gallery' ? (
+                  <GalleryTab taskId={task.id} />
+                ) : activeTab === 'related' ? (
+                  <RelatedTasksTab />
                 ) : (
                   <LogsTab />
                 )}
               </div>
 
-              <TaskFollowUpSection />
+              {/* Only show TaskFollowUpSection when not in gallery or related tab */}
+              {activeTab !== 'gallery' && activeTab !== 'related' && (
+                <TaskFollowUpSection />
+              )}
+              {/* Debug info */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="text-xs text-gray-500 p-2 bg-gray-100">
+                  Debug: activeTab = {activeTab}, hiding chat ={' '}
+                  {activeTab === 'gallery' ? 'true' : 'false'}
+                </div>
+              )}
             </div>
           </div>
 

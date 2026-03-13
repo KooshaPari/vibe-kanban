@@ -50,7 +50,9 @@ export function McpServers() {
       const defaultConfig =
         executorType === 'amp'
           ? '{\n  "amp.mcpServers": {\n  }\n}'
-          : '{\n  "mcpServers": {\n  }\n}';
+          : executorType === 'sst-opencode'
+            ? '{\n  "mcp": {\n  }, "$schema": "https://opencode.ai/config.json"\n}'
+            : '{\n  "mcpServers": {\n  }\n}';
       setMcpServers(defaultConfig);
       setMcpConfigPath('');
 
@@ -59,14 +61,20 @@ export function McpServers() {
         const result = await mcpServersApi.load(executorType);
         // Handle new response format with servers and config_path
         const data = result || {};
-        const servers = (data as any).servers || {};
-        const configPath = (data as any).config_path || '';
+        const servers = data.servers || {};
+        const configPath =
+          typeof data.config_path === 'string' ? data.config_path : '';
 
         // Create the full configuration structure based on executor type
         let fullConfig;
         if (executorType === 'amp') {
           // For AMP, use the amp.mcpServers structure
           fullConfig = { 'amp.mcpServers': servers };
+        } else if (executorType === 'sst-opencode') {
+          fullConfig = {
+            mcp: servers,
+            $schema: 'https://opencode.ai/config.json',
+          };
         } else {
           // For other executors, use the standard mcpServers structure
           fullConfig = { mcpServers: servers };
@@ -76,8 +84,10 @@ export function McpServers() {
         setMcpServers(configJson);
         setMcpConfigPath(configPath);
       } catch (err: unknown) {
-        if ((err as Error)?.message && (err as Error).message.includes('does not support MCP')) {
-          setMcpError((err as Error).message);
+        const errorMessage =
+          err instanceof Error ? err.message : 'Unknown error';
+        if (errorMessage && errorMessage.includes('does not support MCP')) {
+          setMcpError(errorMessage);
         } else {
           console.error('Error loading MCP servers:', err);
         }
@@ -110,6 +120,10 @@ export function McpServers() {
               'AMP configuration must contain an "amp.mcpServers" object'
             );
           }
+        } else if (selectedMcpExecutor === 'sst-opencode') {
+          if (!config.mcp || typeof config.mcp !== 'object') {
+            setMcpError('Configuration must contain an "mcp" object');
+          }
         } else {
           if (!config.mcpServers || typeof config.mcpServers !== 'object') {
             setMcpError('Configuration must contain an "mcpServers" object');
@@ -129,10 +143,17 @@ export function McpServers() {
       const existingConfig = mcpServers.trim() ? JSON.parse(mcpServers) : {};
 
       // Always use production MCP installation instructions
-      const vibeKanbanConfig = {
-        command: 'npx',
-        args: ['-y', 'vibe-kanban', '--mcp'],
-      };
+      const vibeKanbanConfig =
+        selectedMcpExecutor === 'sst-opencode'
+          ? {
+              type: 'local',
+              command: ['npx', '-y', 'vibe-kanban', '--mcp'],
+              enabled: true,
+            }
+          : {
+              command: 'npx',
+              args: ['-y', 'vibe-kanban', '--mcp'],
+            };
 
       // Add vibe_kanban to the existing configuration
       let updatedConfig;
@@ -141,6 +162,14 @@ export function McpServers() {
           ...existingConfig,
           'amp.mcpServers': {
             ...(existingConfig['amp.mcpServers'] || {}),
+            vibe_kanban: vibeKanbanConfig,
+          },
+        };
+      } else if (selectedMcpExecutor === 'sst-opencode') {
+        updatedConfig = {
+          ...existingConfig,
+          mcp: {
+            ...(existingConfig.mcp || {}),
             vibe_kanban: vibeKanbanConfig,
           },
         };
@@ -189,6 +218,12 @@ export function McpServers() {
             }
             // Extract just the inner servers object for the API - backend will handle nesting
             mcpServersConfig = fullConfig['amp.mcpServers'];
+          } else if (selectedMcpExecutor === 'sst-opencode') {
+            if (!fullConfig.mcp || typeof fullConfig.mcp !== 'object') {
+              throw new Error('Configuration must contain an "mcp" object');
+            }
+            // Extract just the mcp part for the API
+            mcpServersConfig = fullConfig.mcp;
           } else {
             if (
               !fullConfig.mcpServers ||
@@ -240,12 +275,12 @@ export function McpServers() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="space-y-6">
-        <div>
+        <header>
           <h1 className="text-3xl font-bold">MCP Servers</h1>
           <p className="text-muted-foreground">
             Configure MCP servers to extend executor capabilities.
           </p>
-        </div>
+        </header>
 
         {mcpError && (
           <Alert variant="destructive">
@@ -295,21 +330,21 @@ export function McpServers() {
             </div>
 
             {mcpError && mcpError.includes('does not support MCP') ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
-                <div className="flex">
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                      MCP Not Supported
-                    </h3>
-                    <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
-                      <p>{mcpError}</p>
-                      <p className="mt-1">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+                  <div className="flex">
+                    <div className="ml-3">
+                      <h2 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                        MCP Not Supported
+                      </h2>
+                      <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                        <p>{mcpError}</p>
+                        <p className="mt-1">
                         To use MCP servers, please select a different executor
                         (Claude, Amp, or Gemini) above.
                       </p>
+                      </div>
                     </div>
                   </div>
-                </div>
               </div>
             ) : (
               <div className="space-y-2">

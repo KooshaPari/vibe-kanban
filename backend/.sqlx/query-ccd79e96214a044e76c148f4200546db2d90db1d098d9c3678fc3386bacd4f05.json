@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO comment_attachments (id, comment_id, attachment_id) VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "ccd79e96214a044e76c148f4200546db2d90db1d098d9c3678fc3386bacd4f05"
+}

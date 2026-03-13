@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,13 @@ interface DisclaimerDialogProps {
 export function DisclaimerDialog({ open, onAccept }: DisclaimerDialogProps) {
   const [acknowledged, setAcknowledged] = useState(false);
 
+  // Reset state when dialog is closed
+  useEffect(() => {
+    if (!open) {
+      setAcknowledged(false);
+    }
+  }, [open]);
+
   const handleAccept = () => {
     if (acknowledged) {
       onAccept();
@@ -33,10 +40,10 @@ export function DisclaimerDialog({ open, onAccept }: DisclaimerDialogProps) {
             <AlertTriangle className="h-6 w-6 text-destructive" />
             <DialogTitle>Important Safety Warning</DialogTitle>
           </div>
-          <DialogDescription className="text-left space-y-4 pt-4">
-            <p className="font-semibold text-foreground">
-              Please read and acknowledge the following before proceeding:
-            </p>
+          <DialogDescription>
+            Please read and acknowledge the following before proceeding:
+          </DialogDescription>
+          <div className="text-left space-y-4 pt-4">
             <div className="space-y-3">
               <p>
                 <strong>Coding agents have full access to your computer</strong>{' '}
@@ -72,7 +79,7 @@ export function DisclaimerDialog({ open, onAccept }: DisclaimerDialogProps) {
                 </li>
               </ul>
             </div>
-          </DialogDescription>
+          </div>
         </DialogHeader>
         <div className="flex items-center space-x-2 py-4">
           <Checkbox

@@ -1,8 +1,11 @@
+use std::future::Future;
+
 use rmcp::{
+    handler::server::tool::{Parameters, ToolRouter},
     model::{
         CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
     },
-    schemars, tool, Error as RmcpError, ServerHandler,
+    schemars, tool, tool_handler, tool_router, Error as RmcpError, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -12,6 +15,8 @@ use uuid::Uuid;
 use crate::models::{
     project::Project,
     task::{CreateTask, Task, TaskStatus},
+    task_attachment::TaskAttachment,
+    task_comment::{CreateTaskComment, TaskComment},
 };
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -22,11 +27,6 @@ pub struct CreateTaskRequest {
     pub title: String,
     #[schemars(description = "Optional description of the task")]
     pub description: Option<String>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub struct ListProjectsRequest {
-    // Empty for now, but we can add filtering options later
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -93,8 +93,8 @@ pub struct TaskSummary {
     pub has_in_progress_attempt: Option<bool>,
     #[schemars(description = "Whether the task has a merged execution attempt")]
     pub has_merged_attempt: Option<bool>,
-    #[schemars(description = "Whether the task has a failed execution attempt")]
-    pub has_failed_attempt: Option<bool>,
+    #[schemars(description = "Whether the last execution attempt failed")]
+    pub last_attempt_failed: Option<bool>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -193,30 +193,54 @@ pub struct GetTaskResponse {
     pub project_name: Option<String>,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct AddCommentRequest {
+    #[schemars(description = "The ID of the task to add the comment to")]
+    pub task_id: String,
+    #[schemars(description = "The content of the comment (supports markdown)")]
+    pub content: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct ListCommentsRequest {
+    #[schemars(description = "The ID of the task to list comments for")]
+    pub task_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct ListAttachmentsRequest {
+    #[schemars(description = "The ID of the task to list attachments for")]
+    pub task_id: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct TaskServer {
     pub pool: SqlitePool,
+    tool_router: ToolRouter<TaskServer>,
 }
 
 impl TaskServer {
     #[allow(dead_code)]
     pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            tool_router: Self::tool_router(),
+        }
     }
 }
 
-#[tool(tool_box)]
+#[tool_router]
 impl TaskServer {
     #[tool(
         description = "Create a new task/ticket in a project. Always pass the `project_id` of the project you want to create the task in - it is required!"
     )]
     async fn create_task(
         &self,
-        #[tool(aggr)] CreateTaskRequest {
+        Parameters(CreateTaskRequest {
             project_id,
             title,
             description,
-        }: CreateTaskRequest,
+        }): Parameters<CreateTaskRequest>,
     ) -> Result<CallToolResult, RmcpError> {
         // Parse project_id from string to UUID
         let project_uuid = match Uuid::parse_str(&project_id) {
@@ -267,6 +291,7 @@ impl TaskServer {
             project_id: project_uuid,
             title: title.clone(),
             description: description.clone(),
+            parent_task_attempt: None,
         };
 
         match Task::create(&self.pool, &create_task_data, task_id).await {
@@ -298,10 +323,7 @@ impl TaskServer {
     }
 
     #[tool(description = "List all the available projects")]
-    async fn list_projects(
-        &self,
-        #[tool(aggr)] _request: ListProjectsRequest,
-    ) -> Result<CallToolResult, RmcpError> {
+    async fn list_projects(&self) -> Result<CallToolResult, RmcpError> {
         match Project::find_all(&self.pool).await {
             Ok(projects) => {
                 let count = projects.len();
@@ -352,11 +374,11 @@ impl TaskServer {
     )]
     async fn list_tasks(
         &self,
-        #[tool(aggr)] ListTasksRequest {
+        Parameters(ListTasksRequest {
             project_id,
             status,
             limit,
-        }: ListTasksRequest,
+        }): Parameters<ListTasksRequest>,
     ) -> Result<CallToolResult, RmcpError> {
         let project_uuid = match Uuid::parse_str(&project_id) {
             Ok(uuid) => uuid,
@@ -449,7 +471,7 @@ impl TaskServer {
                         updated_at: task.updated_at.to_rfc3339(),
                         has_in_progress_attempt: Some(task.has_in_progress_attempt),
                         has_merged_attempt: Some(task.has_merged_attempt),
-                        has_failed_attempt: Some(task.has_failed_attempt),
+                        last_attempt_failed: Some(task.last_attempt_failed),
                     })
                     .collect();
 
@@ -491,13 +513,13 @@ impl TaskServer {
     )]
     async fn update_task(
         &self,
-        #[tool(aggr)] UpdateTaskRequest {
+        Parameters(UpdateTaskRequest {
             project_id,
             task_id,
             title,
             description,
             status,
-        }: UpdateTaskRequest,
+        }): Parameters<UpdateTaskRequest>,
     ) -> Result<CallToolResult, RmcpError> {
         let project_uuid = match Uuid::parse_str(&project_id) {
             Ok(uuid) => uuid,
@@ -574,6 +596,7 @@ impl TaskServer {
         let new_title = title.unwrap_or(current_task.title);
         let new_description = description.or(current_task.description);
         let new_status = status_enum.unwrap_or(current_task.status);
+        let new_parent_task_attempt = current_task.parent_task_attempt;
 
         match Task::update(
             &self.pool,
@@ -582,6 +605,7 @@ impl TaskServer {
             new_title,
             new_description,
             new_status,
+            new_parent_task_attempt,
         )
         .await
         {
@@ -595,7 +619,7 @@ impl TaskServer {
                     updated_at: updated_task.updated_at.to_rfc3339(),
                     has_in_progress_attempt: None,
                     has_merged_attempt: None,
-                    has_failed_attempt: None,
+                    last_attempt_failed: None,
                 };
 
                 let response = UpdateTaskResponse {
@@ -626,10 +650,10 @@ impl TaskServer {
     )]
     async fn delete_task(
         &self,
-        #[tool(aggr)] DeleteTaskRequest {
+        Parameters(DeleteTaskRequest {
             project_id,
             task_id,
-        }: DeleteTaskRequest,
+        }): Parameters<DeleteTaskRequest>,
     ) -> Result<CallToolResult, RmcpError> {
         let project_uuid = match Uuid::parse_str(&project_id) {
             Ok(uuid) => uuid,
@@ -720,10 +744,10 @@ impl TaskServer {
     )]
     async fn get_task(
         &self,
-        #[tool(aggr)] GetTaskRequest {
+        Parameters(GetTaskRequest {
             project_id,
             task_id,
-        }: GetTaskRequest,
+        }): Parameters<GetTaskRequest>,
     ) -> Result<CallToolResult, RmcpError> {
         let project_uuid = match Uuid::parse_str(&project_id) {
             Ok(uuid) => uuid,
@@ -766,7 +790,7 @@ impl TaskServer {
                     updated_at: task.updated_at.to_rfc3339(),
                     has_in_progress_attempt: None,
                     has_merged_attempt: None,
-                    has_failed_attempt: None,
+                    last_attempt_failed: None,
                 };
 
                 let response = GetTaskResponse {
@@ -800,13 +824,185 @@ impl TaskServer {
             }
         }
     }
+
+    #[tool(
+        description = "Add a comment to a task. Use this to provide updates, observations, or feedback on task progress."
+    )]
+    async fn add_task_comment(
+        &self,
+        Parameters(AddCommentRequest { task_id, content }): Parameters<AddCommentRequest>,
+    ) -> Result<CallToolResult, RmcpError> {
+        let task_uuid = match Uuid::parse_str(&task_id) {
+            Ok(uuid) => uuid,
+            Err(_) => {
+                let error_response = serde_json::json!({
+                    "success": false,
+                    "error": "Invalid task ID format. Must be a valid UUID.",
+                    "task_id": task_id
+                });
+                return Ok(CallToolResult::error(vec![Content::text(
+                    serde_json::to_string_pretty(&error_response)
+                        .unwrap_or_else(|_| "Invalid task ID format".to_string()),
+                )]));
+            }
+        };
+
+        let create_comment = CreateTaskComment {
+            task_id: task_uuid,
+            content,
+            attachment_ids: None,
+            author: "MCP User".to_string(),
+        };
+
+        let comment_id = Uuid::new_v4();
+        match TaskComment::create(&self.pool, &create_comment, comment_id).await {
+            Ok(comment) => {
+                let response = serde_json::json!({
+                    "success": true,
+                    "comment_id": comment.id.to_string(),
+                    "content": comment.content,
+                    "created_at": comment.created_at.to_rfc3339(),
+                    "message": "Comment added successfully"
+                });
+                Ok(CallToolResult::success(vec![Content::text(
+                    serde_json::to_string_pretty(&response).unwrap(),
+                )]))
+            }
+            Err(e) => {
+                let error_response = serde_json::json!({
+                    "success": false,
+                    "error": "Failed to add comment",
+                    "details": e.to_string()
+                });
+                Ok(CallToolResult::error(vec![Content::text(
+                    serde_json::to_string_pretty(&error_response).unwrap(),
+                )]))
+            }
+        }
+    }
+
+    #[tool(description = "List all comments for a task to see the discussion history and updates.")]
+    async fn list_task_comments(
+        &self,
+        Parameters(ListCommentsRequest { task_id }): Parameters<ListCommentsRequest>,
+    ) -> Result<CallToolResult, RmcpError> {
+        let task_uuid = match Uuid::parse_str(&task_id) {
+            Ok(uuid) => uuid,
+            Err(_) => {
+                let error_response = serde_json::json!({
+                    "success": false,
+                    "error": "Invalid task ID format. Must be a valid UUID.",
+                    "task_id": task_id
+                });
+                return Ok(CallToolResult::error(vec![Content::text(
+                    serde_json::to_string_pretty(&error_response).unwrap(),
+                )]));
+            }
+        };
+
+        match TaskComment::find_by_task_id(&self.pool, task_uuid).await {
+            Ok(comments) => {
+                let comment_summaries: Vec<_> = comments
+                    .into_iter()
+                    .map(|comment| {
+                        serde_json::json!({
+                            "id": comment.id.to_string(),
+                            "content": comment.content,
+                            "created_at": comment.created_at.to_rfc3339(),
+                            "updated_at": comment.updated_at.to_rfc3339(),
+                            "author": comment.author
+                        })
+                    })
+                    .collect();
+
+                let response = serde_json::json!({
+                    "success": true,
+                    "comments": comment_summaries,
+                    "count": comment_summaries.len()
+                });
+                Ok(CallToolResult::success(vec![Content::text(
+                    serde_json::to_string_pretty(&response).unwrap(),
+                )]))
+            }
+            Err(e) => {
+                let error_response = serde_json::json!({
+                    "success": false,
+                    "error": "Failed to retrieve comments",
+                    "details": e.to_string()
+                });
+                Ok(CallToolResult::error(vec![Content::text(
+                    serde_json::to_string_pretty(&error_response).unwrap(),
+                )]))
+            }
+        }
+    }
+
+    #[tool(
+        description = "List all attachments/media files for a task to see uploaded images, documents, etc."
+    )]
+    async fn list_task_attachments(
+        &self,
+        Parameters(ListAttachmentsRequest { task_id }): Parameters<ListAttachmentsRequest>,
+    ) -> Result<CallToolResult, RmcpError> {
+        let task_uuid = match Uuid::parse_str(&task_id) {
+            Ok(uuid) => uuid,
+            Err(_) => {
+                let error_response = serde_json::json!({
+                    "success": false,
+                    "error": "Invalid task ID format. Must be a valid UUID.",
+                    "task_id": task_id
+                });
+                return Ok(CallToolResult::error(vec![Content::text(
+                    serde_json::to_string_pretty(&error_response).unwrap(),
+                )]));
+            }
+        };
+
+        match TaskAttachment::find_by_task_id(&self.pool, task_uuid).await {
+            Ok(attachments) => {
+                let attachment_summaries: Vec<_> = attachments
+                    .into_iter()
+                    .map(|attachment| {
+                        serde_json::json!({
+                            "id": attachment.id.to_string(),
+                            "filename": attachment.filename,
+                            "original_name": attachment.original_name,
+                            "file_type": format!("{:?}", attachment.file_type).to_lowercase(),
+                            "file_size": attachment.file_size,
+                            "mime_type": attachment.mime_type,
+                            "created_at": attachment.created_at.to_rfc3339()
+                        })
+                    })
+                    .collect();
+
+                let response = serde_json::json!({
+                    "success": true,
+                    "attachments": attachment_summaries,
+                    "count": attachment_summaries.len()
+                });
+                Ok(CallToolResult::success(vec![Content::text(
+                    serde_json::to_string_pretty(&response).unwrap(),
+                )]))
+            }
+            Err(e) => {
+                let error_response = serde_json::json!({
+                    "success": false,
+                    "error": "Failed to retrieve attachments",
+                    "details": e.to_string()
+                });
+                Ok(CallToolResult::error(vec![Content::text(
+                    serde_json::to_string_pretty(&error_response).unwrap(),
+                )]))
+            }
+        }
+    }
 }
 
-#[tool(tool_box)]
+#[tool_handler]
 impl ServerHandler for TaskServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
-            protocol_version: ProtocolVersion::V_2024_11_05,
+            protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
                 .build(),
@@ -814,7 +1010,7 @@ impl ServerHandler for TaskServer {
                 name: "vibe-kanban".to_string(),
                 version: "1.0.0".to_string(),
             },
-            instructions: Some("A task and project management server. If you need to create or update tickets or tasks then use these tools. Most of them absolutely require that you pass the `project_id` of the project that you are currently working on. This should be provided to you. TOOLS: 'list_projects', 'list_tasks', 'create_task', 'get_task', 'update_task', 'delete_task'. Make sure to pass `project_id` or `task_id` where required. You can use list tools to get the available ids.".to_string()),
+            instructions: Some("A task and project management server. If you need to create or update tickets or tasks then use these tools. Most of them absolutely require that you pass the `project_id` of the project that you are currently working on. This should be provided to you. Call `list_tasks` to fetch the `task_ids` of all the tasks in a project`. TOOLS: 'list_projects', 'list_tasks', 'create_task', 'get_task', 'update_task', 'delete_task'. Make sure to pass `project_id` or `task_id` where required. You can use list tools to get the available ids.".to_string()),
         }
     }
 }
