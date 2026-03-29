@@ -59,7 +59,7 @@ export function ProvidePatDialog({
             Please provide a Personal Access Token with <b>repo</b> permissions.
           </p>
           <Input
-            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+            placeholder="github_pat_example_token"
             value={pat}
             onChange={(e) => setPat(e.target.value)}
             autoFocus

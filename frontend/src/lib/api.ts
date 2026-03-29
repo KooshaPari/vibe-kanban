@@ -7,22 +7,24 @@ import {
   CreateTask,
   CreateTaskAndStart,
   CreateTaskAttempt,
+  CreateTaskTemplate,
   DeviceStartResponse,
   DirectoryEntry,
   type EditorType,
   ExecutionProcess,
   ExecutionProcessSummary,
   GitBranch,
-  NormalizedConversation,
+  ProcessLogsResponse,
   Project,
   ProjectWithBranch,
   Task,
   TaskAttempt,
-  TaskAttemptActivityWithPrompt,
   TaskAttemptState,
+  TaskTemplate,
   TaskWithAttemptStatus,
   UpdateProject,
   UpdateTask,
+  UpdateTaskTemplate,
   WorktreeDiff,
 } from 'shared/types';
 
@@ -42,6 +44,12 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   message?: string;
+}
+
+export interface FollowUpResponse {
+  message: string;
+  actual_attempt_id: string;
+  created_new_attempt: boolean;
 }
 
 // Additional interface for file search results
@@ -150,6 +158,7 @@ export const projectsApi = {
   openEditor: async (id: string): Promise<void> => {
     const response = await makeRequest(`/api/projects/${id}/open-editor`, {
       method: 'POST',
+      body: JSON.stringify(null),
     });
     return handleApiResponse<void>(response);
   },
@@ -175,6 +184,13 @@ export const tasksApi = {
   getAll: async (projectId: string): Promise<TaskWithAttemptStatus[]> => {
     const response = await makeRequest(`/api/projects/${projectId}/tasks`);
     return handleApiResponse<TaskWithAttemptStatus[]>(response);
+  },
+
+  getById: async (projectId: string, taskId: string): Promise<Task> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/tasks/${taskId}`
+    );
+    return handleApiResponse<Task>(response);
   },
 
   create: async (projectId: string, data: CreateTask): Promise<Task> => {
@@ -222,6 +238,17 @@ export const tasksApi = {
       }
     );
     return handleApiResponse<void>(response);
+  },
+
+  getChildren: async (
+    projectId: string,
+    taskId: string,
+    attemptId: string
+  ): Promise<Task[]> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/tasks/${taskId}/attempts/${attemptId}/children`
+    );
+    return handleApiResponse<Task[]>(response);
   },
 };
 
@@ -288,17 +315,6 @@ export const attemptsApi = {
       }
     );
     return handleApiResponse<void>(response);
-  },
-
-  getActivities: async (
-    projectId: string,
-    taskId: string,
-    attemptId: string
-  ): Promise<TaskAttemptActivityWithPrompt[]> => {
-    const response = await makeRequest(
-      `/api/projects/${projectId}/tasks/${taskId}/attempts/${attemptId}/activities`
-    );
-    return handleApiResponse<TaskAttemptActivityWithPrompt[]>(response);
   },
 
   getDiff: async (
@@ -450,28 +466,29 @@ export const attemptsApi = {
     );
     return handleApiResponse<void>(response);
   },
+
+  getDetails: async (attemptId: string): Promise<TaskAttempt> => {
+    const response = await makeRequest(`/api/attempts/${attemptId}/details`);
+    return handleApiResponse<TaskAttempt>(response);
+  },
+
+  getAllLogs: async (
+    projectId: string,
+    taskId: string,
+    attemptId: string
+  ): Promise<ProcessLogsResponse[]> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/tasks/${taskId}/attempts/${attemptId}/logs`
+    );
+    return handleApiResponse(response);
+  },
 };
 
 // Execution Process APIs
 export const executionProcessesApi = {
-  getDetails: async (
-    projectId: string,
-    processId: string
-  ): Promise<ExecutionProcess> => {
-    const response = await makeRequest(
-      `/api/projects/${projectId}/execution-processes/${processId}`
-    );
+  getDetails: async (processId: string): Promise<ExecutionProcess> => {
+    const response = await makeRequest(`/api/execution-processes/${processId}`);
     return handleApiResponse<ExecutionProcess>(response);
-  },
-
-  getNormalizedLogs: async (
-    projectId: string,
-    processId: string
-  ): Promise<NormalizedConversation> => {
-    const response = await makeRequest(
-      `/api/projects/${projectId}/execution-processes/${processId}/normalized-logs`
-    );
-    return handleApiResponse<NormalizedConversation>(response);
   },
 };
 
@@ -530,15 +547,67 @@ export const githubAuthApi = {
   },
 };
 
+// Task Templates APIs
+export const templatesApi = {
+  list: async (): Promise<TaskTemplate[]> => {
+    const response = await makeRequest('/api/templates');
+    return handleApiResponse<TaskTemplate[]>(response);
+  },
+
+  listGlobal: async (): Promise<TaskTemplate[]> => {
+    const response = await makeRequest('/api/templates/global');
+    return handleApiResponse<TaskTemplate[]>(response);
+  },
+
+  listByProject: async (projectId: string): Promise<TaskTemplate[]> => {
+    const response = await makeRequest(`/api/projects/${projectId}/templates`);
+    return handleApiResponse<TaskTemplate[]>(response);
+  },
+
+  get: async (templateId: string): Promise<TaskTemplate> => {
+    const response = await makeRequest(`/api/templates/${templateId}`);
+    return handleApiResponse<TaskTemplate>(response);
+  },
+
+  create: async (data: CreateTaskTemplate): Promise<TaskTemplate> => {
+    const response = await makeRequest('/api/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<TaskTemplate>(response);
+  },
+
+  update: async (
+    templateId: string,
+    data: UpdateTaskTemplate
+  ): Promise<TaskTemplate> => {
+    const response = await makeRequest(`/api/templates/${templateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<TaskTemplate>(response);
+  },
+
+  delete: async (templateId: string): Promise<void> => {
+    const response = await makeRequest(`/api/templates/${templateId}`, {
+      method: 'DELETE',
+    });
+    return handleApiResponse<void>(response);
+  },
+};
+
 // MCP Servers APIs
 export const mcpServersApi = {
-  load: async (executor: string): Promise<unknown> => {
+  load: async (executor: string): Promise<Record<string, unknown>> => {
     const response = await makeRequest(
       `/api/mcp-servers?executor=${encodeURIComponent(executor)}`
     );
-    return handleApiResponse<unknown>(response);
+    return handleApiResponse<Record<string, unknown>>(response);
   },
-  save: async (executor: string, serversConfig: unknown): Promise<void> => {
+  save: async (
+    executor: string,
+    serversConfig: Record<string, unknown>
+  ): Promise<void> => {
     const response = await makeRequest(
       `/api/mcp-servers?executor=${encodeURIComponent(executor)}`,
       {
@@ -560,5 +629,153 @@ export const mcpServersApi = {
         response
       );
     }
+  },
+};
+
+// Placeholder types for gallery - these will be replaced when types are generated
+export interface TaskAttachment {
+  id: string;
+  task_id: string;
+  filename: string;
+  original_name: string;
+  file_path: string;
+  file_size: number;
+  mime_type: string;
+  file_type: 'image' | 'video' | 'document' | 'other';
+  created_at: string;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  author: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  attachments: TaskAttachment[];
+}
+
+export interface CreateTaskComment {
+  task_id: string;
+  author: string;
+  content: string;
+  attachment_ids?: string[];
+}
+
+export interface UpdateTaskComment {
+  content: string;
+}
+
+// Gallery APIs
+export const galleryApi = {
+  // Attachments
+  getAttachments: async (taskId: string): Promise<TaskAttachment[]> => {
+    const response = await makeRequest(`/api/tasks/${taskId}/attachments`);
+    return handleApiResponse<TaskAttachment[]>(response);
+  },
+
+  uploadAttachment: async (
+    taskId: string,
+    file: File
+  ): Promise<TaskAttachment> => {
+    console.log('API uploadAttachment called with:', {
+      taskId,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+    });
+
+    // Validate file on client side
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+      throw new Error('File size exceeds 50MB limit');
+    }
+
+    if (file.size === 0) {
+      throw new Error('File is empty');
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      // Use makeRequest - it will handle FormData properly
+      const response = await makeRequest(`/api/tasks/${taskId}/attachments`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      return handleApiResponse<TaskAttachment>(response);
+    } catch (error) {
+      console.error('Upload error:', error);
+
+      // Re-throw with more specific error messages
+      if (error instanceof ApiError) {
+        if (error.status === 413) {
+          throw new Error('File size exceeds 50MB limit');
+        } else if (error.status === 415) {
+          throw new Error('File type not supported');
+        } else if (error.status === 400) {
+          throw new Error('Invalid file or request format');
+        }
+      }
+
+      throw error;
+    }
+  },
+
+  deleteAttachment: async (
+    taskId: string,
+    attachmentId: string
+  ): Promise<void> => {
+    const response = await makeRequest(
+      `/api/tasks/${taskId}/attachments/${attachmentId}`,
+      { method: 'DELETE' }
+    );
+    return handleApiResponse<void>(response);
+  },
+
+  getAttachmentUrl: (taskId: string, attachmentId: string): string => {
+    return `/api/tasks/${taskId}/attachments/${attachmentId}/file`;
+  },
+
+  // Comments
+  getComments: async (taskId: string): Promise<TaskComment[]> => {
+    const response = await makeRequest(`/api/tasks/${taskId}/comments`);
+    return handleApiResponse<TaskComment[]>(response);
+  },
+
+  createComment: async (
+    taskId: string,
+    data: CreateTaskComment
+  ): Promise<TaskComment> => {
+    const response = await makeRequest(`/api/tasks/${taskId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<TaskComment>(response);
+  },
+
+  updateComment: async (
+    taskId: string,
+    commentId: string,
+    data: UpdateTaskComment
+  ): Promise<TaskComment> => {
+    const response = await makeRequest(
+      `/api/tasks/${taskId}/comments/${commentId}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    return handleApiResponse<TaskComment>(response);
+  },
+
+  deleteComment: async (taskId: string, commentId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/tasks/${taskId}/comments/${commentId}`,
+      { method: 'DELETE' }
+    );
+    return handleApiResponse<void>(response);
   },
 };

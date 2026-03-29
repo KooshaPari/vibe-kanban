@@ -31,6 +31,7 @@ import {
 import { useTheme } from '@/components/theme-provider';
 import { useConfig } from '@/components/config-provider';
 import { GitHubLoginDialog } from '@/components/GitHubLoginDialog';
+import { TaskTemplateManager } from '@/components/TaskTemplateManager';
 
 export function Settings() {
   const { config, updateConfig, saveConfig, loading, updateAndSaveConfig } =
@@ -128,12 +129,12 @@ export function Settings() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="space-y-6">
-        <div>
+        <header>
           <h1 className="text-3xl font-bold">Settings</h1>
           <p className="text-muted-foreground">
             Configure your preferences and application settings.
           </p>
-        </div>
+        </header>
 
         {error && (
           <Alert variant="destructive">
@@ -305,7 +306,7 @@ export function Settings() {
                 <Input
                   id="github-token"
                   type="password"
-                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                  placeholder="github_pat_example_token"
                   value={config.github.pat || ''}
                   onChange={(e) =>
                     updateConfig({
@@ -485,6 +486,19 @@ export function Settings() {
                   </p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Task Templates</CardTitle>
+              <CardDescription>
+                Manage global task templates that can be used across all
+                projects.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TaskTemplateManager isGlobal={true} />
             </CardContent>
           </Card>
 

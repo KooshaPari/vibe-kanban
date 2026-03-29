@@ -23,6 +23,7 @@ import {
   Loader2,
   Trash2,
 } from 'lucide-react';
+import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts';
 
 interface ProjectDetailProps {
   projectId: string;
@@ -35,6 +36,11 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [error, setError] = useState('');
+
+  useKeyboardShortcuts({
+    navigate,
+    currentPath: `/projects/${projectId}`,
+  });
 
   const fetchProject = useCallback(async () => {
     setLoading(true);
@@ -101,7 +107,7 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
               <AlertCircle className="h-6 w-6 text-muted-foreground" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold">Project not found</h3>
+            <h2 className="mt-4 text-lg font-semibold">Project not found</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {error ||
                 "The project you're looking for doesn't exist or has been deleted."}
@@ -117,7 +123,7 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
 
   return (
     <div className="space-y-6 py-12 px-4">
-      <div className="flex justify-between items-start">
+      <header className="flex justify-between items-start">
         <div className="flex items-center space-x-4">
           <Button variant="outline" onClick={onBack}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -155,7 +161,7 @@ export function ProjectDetail({ projectId, onBack }: ProjectDetailProps) {
             Delete
           </Button>
         </div>
-      </div>
+      </header>
 
       {error && (
         <Alert variant="destructive">

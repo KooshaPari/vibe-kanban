@@ -3,11 +3,19 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const plugins = [react()]
+
+if (process.env.SENTRY_AUTH_TOKEN) {
+  plugins.push(
+    sentryVitePlugin({
+      org: "bloop-ai",
+      project: "vibe-kanban"
+    })
+  )
+}
+
 export default defineConfig({
-  plugins: [react(), sentryVitePlugin({
-    org: "bloop-ai",
-    project: "vibe-kanban"
-  })],
+  plugins,
 
   resolve: {
     alias: {
@@ -27,15 +35,6 @@ export default defineConfig({
   },
 
   build: {
-    // Tauri expects a relative base path
-    target: process.env.TAURI_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
-    minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
-    sourcemap: process.env.TAURI_DEBUG ? true : 'hidden',
-  },
-
-  // prevent vite from obscuring rust errors
-  clearScreen: false,
-  
-  // Env variables starting with the item of `envPrefix` will be exposed in vite's frontend code. 
-  envPrefix: ['VITE_', 'TAURI_'],
+    sourcemap: true
+  }
 })

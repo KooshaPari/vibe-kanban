@@ -7,13 +7,13 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::executors::{
-    AmpExecutor, CharmOpencodeExecutor, ClaudeExecutor, DockerExecutor, EchoExecutor, GeminiExecutor,
-    SetupScriptExecutor,
+    AmpExecutor, CCRExecutor, CharmOpencodeExecutor, ClaudeExecutor, EchoExecutor, GeminiExecutor,
+    SetupScriptExecutor, SstOpencodeExecutor,
 };
 
-// Constants for database streaming
+// Constants for database streaming - fast for near-real-time updates
 const STDOUT_UPDATE_THRESHOLD: usize = 1;
-const BUFFER_SIZE_THRESHOLD: usize = 1024;
+const BUFFER_SIZE_THRESHOLD: usize = 256;
 
 /// Normalized conversation representation for different executor formats
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -64,6 +64,7 @@ pub enum ActionType {
     Search { query: String },
     WebFetch { url: String },
     TaskCreate { description: String },
+    PlanPresentation { plan: String },
     Other { description: String },
 }
 
@@ -104,6 +105,19 @@ impl SpawnContext {
     pub fn with_context(mut self, context: impl Into<String>) -> Self {
         self.additional_context = Some(context.into());
         self
+    }
+
+    /// Create SpawnContext from Command, then use builder methods for additional context
+    pub fn from_command(
+        command: &tokio::process::Command,
+        executor_type: impl Into<String>,
+    ) -> Self {
+        Self::from(command).with_executor_type(executor_type)
+    }
+
+    /// Finalize the context and create an ExecutorError
+    pub fn spawn_error(self, error: std::io::Error) -> ExecutorError {
+        ExecutorError::spawn_failed(error, self)
     }
 }
 
@@ -146,6 +160,8 @@ pub enum ExecutorError {
     DatabaseError(sqlx::Error),
     ContextCollectionFailed(String),
     GitError(String),
+    InvalidSessionId(String),
+    FollowUpNotSupported,
 }
 
 impl std::fmt::Display for ExecutorError {
@@ -184,6 +200,10 @@ impl std::fmt::Display for ExecutorError {
                 write!(f, "Context collection failed: {}", msg)
             }
             ExecutorError::GitError(msg) => write!(f, "Git operation error: {}", msg),
+            ExecutorError::InvalidSessionId(msg) => write!(f, "Invalid session_id: {}", msg),
+            ExecutorError::FollowUpNotSupported => {
+                write!(f, "This executor does not support follow-up sessions")
+            }
         }
     }
 }
@@ -234,23 +254,7 @@ impl ExecutorError {
     }
 }
 
-/// Helper to create SpawnContext from Command with builder pattern
-impl SpawnContext {
-    /// Create SpawnContext from Command, then use builder methods for additional context
-    pub fn from_command(
-        command: &tokio::process::Command,
-        executor_type: impl Into<String>,
-    ) -> Self {
-        Self::from(command).with_executor_type(executor_type)
-    }
-
-    /// Finalize the context and create an ExecutorError
-    pub fn spawn_error(self, error: std::io::Error) -> ExecutorError {
-        ExecutorError::spawn_failed(error, self)
-    }
-}
-
-/// Trait for defining CLI commands that can be executed for task attempts
+/// Trait for coding agents that can execute tasks, normalize logs, and support follow-up sessions
 #[async_trait]
 pub trait Executor: Send + Sync {
     /// Spawn the command for a given task attempt
@@ -260,6 +264,22 @@ pub trait Executor: Send + Sync {
         task_id: Uuid,
         worktree_path: &str,
     ) -> Result<command_group::AsyncGroupChild, ExecutorError>;
+
+    /// Spawn a follow-up session for executors that support it
+    ///
+    /// This method is used to continue an existing session with a new prompt.
+    /// Not all executors support follow-up sessions, so the default implementation
+    /// returns an error.
+    async fn spawn_followup(
+        &self,
+        _pool: &sqlx::SqlitePool,
+        _task_id: Uuid,
+        _session_id: &str,
+        _prompt: &str,
+        _worktree_path: &str,
+    ) -> Result<command_group::AsyncGroupChild, ExecutorError> {
+        Err(ExecutorError::FollowUpNotSupported)
+    }
 
     /// Normalize executor logs into a standard format
     fn normalize_logs(
@@ -277,18 +297,14 @@ pub trait Executor: Send + Sync {
         })
     }
 
-    /// Execute the command and stream output to database in real-time
-    async fn execute_streaming(
+    #[allow(clippy::result_large_err)]
+    fn setup_streaming(
         &self,
+        child: &mut command_group::AsyncGroupChild,
         pool: &sqlx::SqlitePool,
-        task_id: Uuid,
         attempt_id: Uuid,
         execution_process_id: Uuid,
-        worktree_path: &str,
-    ) -> Result<command_group::AsyncGroupChild, ExecutorError> {
-        let mut child = self.spawn(pool, task_id, worktree_path).await?;
-
-        // Take stdout and stderr pipes for streaming
+    ) -> Result<(), ExecutorError> {
         let stdout = child
             .inner()
             .stdout
@@ -300,7 +316,6 @@ pub trait Executor: Send + Sync {
             .take()
             .expect("Failed to take stderr from child process");
 
-        // Start streaming tasks
         let pool_clone1 = pool.clone();
         let pool_clone2 = pool.clone();
 
@@ -319,6 +334,39 @@ pub trait Executor: Send + Sync {
             false,
         ));
 
+        Ok(())
+    }
+
+    /// Execute the command and stream output to database in real-time
+    async fn execute_streaming(
+        &self,
+        pool: &sqlx::SqlitePool,
+        task_id: Uuid,
+        attempt_id: Uuid,
+        execution_process_id: Uuid,
+        worktree_path: &str,
+    ) -> Result<command_group::AsyncGroupChild, ExecutorError> {
+        let mut child = self.spawn(pool, task_id, worktree_path).await?;
+        Self::setup_streaming(self, &mut child, pool, attempt_id, execution_process_id)?;
+        Ok(child)
+    }
+
+    /// Execute a follow-up command and stream output to database in real-time
+    #[allow(clippy::too_many_arguments)]
+    async fn execute_followup_streaming(
+        &self,
+        pool: &sqlx::SqlitePool,
+        task_id: Uuid,
+        attempt_id: Uuid,
+        execution_process_id: Uuid,
+        session_id: &str,
+        prompt: &str,
+        worktree_path: &str,
+    ) -> Result<command_group::AsyncGroupChild, ExecutorError> {
+        let mut child = self
+            .spawn_followup(pool, task_id, session_id, prompt, worktree_path)
+            .await?;
+        Self::setup_streaming(self, &mut child, pool, attempt_id, execution_process_id)?;
         Ok(child)
     }
 }
@@ -328,28 +376,38 @@ pub trait Executor: Send + Sync {
 pub enum ExecutorType {
     SetupScript(String),
     DevServer(String),
-    CodingAgent(ExecutorConfig),
-    FollowUpCodingAgent {
+    CodingAgent {
         config: ExecutorConfig,
-        session_id: Option<String>,
-        prompt: String,
+        follow_up: Option<FollowUpInfo>,
     },
+}
+
+/// Information needed to continue a previous session
+#[derive(Debug, Clone)]
+pub struct FollowUpInfo {
+    pub session_id: String,
+    pub prompt: String,
 }
 
 /// Configuration for different executor types
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "kebab-case")]
 #[ts(export)]
 pub enum ExecutorConfig {
     Echo,
     Claude,
+    ClaudePlan,
     Amp,
     Gemini,
-    SetupScript { script: String },
+    #[serde(alias = "setup_script")]
+    SetupScript {
+        script: String,
+    },
+    ClaudeCodeRouter,
+    #[serde(alias = "charmopencode")]
     CharmOpencode,
-    // Future executors can be added here
-    // Shell { command: String },
-    Docker { image: String, command: String },
+    #[serde(alias = "opencode")]
+    SstOpencode,
 }
 
 // Constants for frontend
@@ -367,15 +425,14 @@ impl FromStr for ExecutorConfig {
         match s {
             "echo" => Ok(ExecutorConfig::Echo),
             "claude" => Ok(ExecutorConfig::Claude),
+            "claude-plan" => Ok(ExecutorConfig::ClaudePlan),
             "amp" => Ok(ExecutorConfig::Amp),
             "gemini" => Ok(ExecutorConfig::Gemini),
-            "charmopencode" => Ok(ExecutorConfig::CharmOpencode),
-            "setup_script" => Ok(ExecutorConfig::SetupScript {
+            "charm-opencode" => Ok(ExecutorConfig::CharmOpencode),
+            "claude-code-router" => Ok(ExecutorConfig::ClaudeCodeRouter),
+            "sst-opencode" => Ok(ExecutorConfig::SstOpencode),
+            "setup-script" => Ok(ExecutorConfig::SetupScript {
                 script: "setup script".to_string(),
-            }),
-            "docker" => Ok(ExecutorConfig::Docker {
-                image: "task-agent:latest".to_string(),
-                command: "bash".to_string(),
             }),
             _ => Err(format!("Unknown executor type: {}", s)),
         }
@@ -386,15 +443,15 @@ impl ExecutorConfig {
     pub fn create_executor(&self) -> Box<dyn Executor> {
         match self {
             ExecutorConfig::Echo => Box::new(EchoExecutor),
-            ExecutorConfig::Claude => Box::new(ClaudeExecutor),
+            ExecutorConfig::Claude => Box::new(ClaudeExecutor::new()),
+            ExecutorConfig::ClaudePlan => Box::new(ClaudeExecutor::new_plan_mode()),
             ExecutorConfig::Amp => Box::new(AmpExecutor),
             ExecutorConfig::Gemini => Box::new(GeminiExecutor),
+            ExecutorConfig::ClaudeCodeRouter => Box::new(CCRExecutor::new()),
             ExecutorConfig::CharmOpencode => Box::new(CharmOpencodeExecutor),
+            ExecutorConfig::SstOpencode => Box::new(SstOpencodeExecutor::new()),
             ExecutorConfig::SetupScript { script } => {
                 Box::new(SetupScriptExecutor::new(script.clone()))
-            }
-            ExecutorConfig::Docker { image, command } => {
-                Box::new(DockerExecutor::new(image.clone(), command.clone()))
             }
         }
     }
@@ -406,14 +463,27 @@ impl ExecutorConfig {
                 dirs::home_dir().map(|home| home.join(".opencode.json"))
             }
             ExecutorConfig::Claude => dirs::home_dir().map(|home| home.join(".claude.json")),
+            ExecutorConfig::ClaudePlan => dirs::home_dir().map(|home| home.join(".claude.json")),
+            ExecutorConfig::ClaudeCodeRouter => {
+                dirs::home_dir().map(|home| home.join(".claude.json"))
+            }
             ExecutorConfig::Amp => {
                 dirs::config_dir().map(|config| config.join("amp").join("settings.json"))
             }
             ExecutorConfig::Gemini => {
                 dirs::home_dir().map(|home| home.join(".gemini").join("settings.json"))
             }
+            ExecutorConfig::SstOpencode => {
+                #[cfg(unix)]
+                {
+                    xdg::BaseDirectories::with_prefix("opencode").get_config_file("opencode.json")
+                }
+                #[cfg(not(unix))]
+                {
+                    dirs::config_dir().map(|config| config.join("opencode").join("opencode.json"))
+                }
+            }
             ExecutorConfig::SetupScript { .. } => None,
-            ExecutorConfig::Docker { .. } => None, // Docker containers handle config internally
         }
     }
 
@@ -422,11 +492,13 @@ impl ExecutorConfig {
         match self {
             ExecutorConfig::Echo => None, // Echo doesn't support MCP
             ExecutorConfig::CharmOpencode => Some(vec!["mcpServers"]),
+            ExecutorConfig::SstOpencode => Some(vec!["mcp"]),
             ExecutorConfig::Claude => Some(vec!["mcpServers"]),
+            ExecutorConfig::ClaudePlan => Some(vec!["mcpServers"]),
             ExecutorConfig::Amp => Some(vec!["amp", "mcpServers"]), // Nested path for Amp
             ExecutorConfig::Gemini => Some(vec!["mcpServers"]),
+            ExecutorConfig::ClaudeCodeRouter => Some(vec!["mcpServers"]),
             ExecutorConfig::SetupScript { .. } => None, // Setup scripts don't support MCP
-            ExecutorConfig::Docker { .. } => Some(vec!["mcpServers"]), // Docker containers can support MCP
         }
     }
 
@@ -443,11 +515,13 @@ impl ExecutorConfig {
         match self {
             ExecutorConfig::Echo => "Echo (Test Mode)",
             ExecutorConfig::CharmOpencode => "Charm Opencode",
+            ExecutorConfig::SstOpencode => "SST Opencode",
             ExecutorConfig::Claude => "Claude",
+            ExecutorConfig::ClaudePlan => "Claude Plan",
             ExecutorConfig::Amp => "Amp",
             ExecutorConfig::Gemini => "Gemini",
+            ExecutorConfig::ClaudeCodeRouter => "Claude Code Router",
             ExecutorConfig::SetupScript { .. } => "Setup Script",
-            ExecutorConfig::Docker { .. } => "Docker Container",
         }
     }
 }
@@ -457,11 +531,13 @@ impl std::fmt::Display for ExecutorConfig {
         let s = match self {
             ExecutorConfig::Echo => "echo",
             ExecutorConfig::Claude => "claude",
+            ExecutorConfig::ClaudePlan => "claude-plan",
             ExecutorConfig::Amp => "amp",
             ExecutorConfig::Gemini => "gemini",
-            ExecutorConfig::CharmOpencode => "charmopencode",
-            ExecutorConfig::SetupScript { .. } => "setup_script",
-            ExecutorConfig::Docker { .. } => "docker",
+            ExecutorConfig::SstOpencode => "sst-opencode",
+            ExecutorConfig::CharmOpencode => "charm-opencode",
+            ExecutorConfig::ClaudeCodeRouter => "claude-code-router",
+            ExecutorConfig::SetupScript { .. } => "setup-script",
         };
         write!(f, "{}", s)
     }
@@ -527,7 +603,6 @@ async fn stream_stdout_to_db(
                         session_id_parsed = true;
                     }
                 }
-
                 accumulated_output.push_str(&line);
                 update_counter += 1;
 
@@ -587,8 +662,8 @@ async fn stream_stderr_to_db(
     let mut reader = BufReader::new(output);
     let mut line = String::new();
     let mut accumulated_output = String::new();
-    const STDERR_FLUSH_TIMEOUT_MS: u64 = 1000;
-    const STDERR_FLUSH_TIMEOUT: Duration = Duration::from_millis(STDERR_FLUSH_TIMEOUT_MS); // 1000ms timeout
+    const STDERR_FLUSH_TIMEOUT_MS: u64 = 100; // Fast flush for near-real-time streaming
+    const STDERR_FLUSH_TIMEOUT: Duration = Duration::from_millis(STDERR_FLUSH_TIMEOUT_MS);
 
     loop {
         line.clear();
@@ -916,7 +991,7 @@ mod tests {
 
     #[test]
     fn test_claude_log_normalization() {
-        let claude_executor = ClaudeExecutor;
+        let claude_executor = ClaudeExecutor::new();
         let claude_logs = r#"{"type":"system","subtype":"init","cwd":"/private/tmp/mission-control-worktree-8ff34214-7bb4-4a5a-9f47-bfdf79e20368","session_id":"499dcce4-04aa-4a3e-9e0c-ea0228fa87c9","tools":["Task","Bash","Glob","Grep","LS","exit_plan_mode","Read","Edit","MultiEdit","Write","NotebookRead","NotebookEdit","WebFetch","TodoRead","TodoWrite","WebSearch"],"mcp_servers":[],"model":"claude-sonnet-4-20250514","permissionMode":"bypassPermissions","apiKeySource":"none"}
 {"type":"assistant","message":{"id":"msg_014xUHgkAhs6cRx5WVT3s7if","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"text","text":"I'll help you list your projects using vibe-kanban. Let me first explore the codebase to understand how vibe-kanban works and find your projects."}],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":4,"cache_creation_input_tokens":13497,"cache_read_input_tokens":0,"output_tokens":1,"service_tier":"standard"}},"parent_tool_use_id":null,"session_id":"499dcce4-04aa-4a3e-9e0c-ea0228fa87c9"}
 {"type":"assistant","message":{"id":"msg_014xUHgkAhs6cRx5WVT3s7if","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[{"type":"tool_use","id":"toolu_01Br3TvXdmW6RPGpB5NihTHh","name":"Task","input":{"description":"Find vibe-kanban projects","prompt":"I need to find and list projects using vibe-kanban."}}],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":4,"cache_creation_input_tokens":13497,"cache_read_input_tokens":0,"output_tokens":1,"service_tier":"standard"}},"parent_tool_use_id":null,"session_id":"499dcce4-04aa-4a3e-9e0c-ea0228fa87c9"}"#;
@@ -925,7 +1000,7 @@ mod tests {
             .normalize_logs(claude_logs, "/tmp/test-worktree")
             .unwrap();
 
-        assert_eq!(result.executor_type, "claude");
+        assert_eq!(result.executor_type, "Claude");
         assert_eq!(
             result.session_id,
             Some("499dcce4-04aa-4a3e-9e0c-ea0228fa87c9".to_string())

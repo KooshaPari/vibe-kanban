@@ -81,7 +81,7 @@ function DiffChunkSection({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => toggleExpandSection(section.expandKey!)}
+          onClick={() => section.expandKey && toggleExpandSection(section.expandKey)}
           className="w-full h-5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 border-t border-b border-gray-200 dark:border-gray-700 rounded-none justify-start"
         >
           <ChevronDown className="h-3 w-3 mr-1" />
@@ -98,7 +98,7 @@ function DiffChunkSection({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => toggleExpandSection(section.expandKey!)}
+            onClick={() => section.expandKey && toggleExpandSection(section.expandKey)}
             className="w-full h-5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 border-t border-b border-gray-200 dark:border-gray-700 rounded-none justify-start"
           >
             <ChevronUp className="h-3 w-3 mr-1" />

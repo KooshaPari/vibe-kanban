@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { useConfig } from './config-provider';
+import { useConfig } from '../hooks/useConfig';
 import { Check, Clipboard, Github } from 'lucide-react';
 import { Loader } from './ui/loader';
 import { githubAuthApi } from '../lib/api';
@@ -45,7 +45,7 @@ export function GitHubLoginDialog({
       setPolling(true);
     } catch (e: unknown) {
       console.error(e);
-      setError((e as Error)?.message || 'Network error');
+      setError(e instanceof Error ? e.message : 'Network error');
     } finally {
       setFetching(false);
     }
@@ -53,7 +53,7 @@ export function GitHubLoginDialog({
 
   // Poll for completion
   useEffect(() => {
-    let timer: number;
+    let timer: NodeJS.Timeout;
     if (polling && deviceState) {
       const poll = async () => {
         try {
@@ -63,17 +63,18 @@ export function GitHubLoginDialog({
           setError(null);
           onOpenChange(false);
         } catch (e: unknown) {
-          if ((e as Error)?.message === 'authorization_pending') {
+          const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+          if (errorMessage === 'authorization_pending') {
             timer = setTimeout(poll, (deviceState.interval || 5) * 1000);
-          } else if ((e as Error)?.message === 'slow_down') {
+          } else if (errorMessage === 'slow_down') {
             timer = setTimeout(poll, (deviceState.interval + 5) * 1000);
-          } else if ((e as Error)?.message === 'expired_token') {
+          } else if (errorMessage === 'expired_token') {
             setPolling(false);
             setError('Device code expired. Please try again.');
             setDeviceState(null);
           } else {
             setPolling(false);
-            setError((e as Error)?.message || 'Login failed.');
+            setError(errorMessage || 'Login failed.');
             setDeviceState(null);
           }
         }
@@ -83,7 +84,7 @@ export function GitHubLoginDialog({
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [polling, deviceState]);
+  }, [polling, deviceState, onOpenChange]);
 
   // Automatically copy code to clipboard when deviceState is set
   useEffect(() => {

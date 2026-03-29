@@ -11,6 +11,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -19,8 +21,10 @@
     "paths": {
       "@/*": ["./src/*"],
       "shared/*": ["../shared/*"]
-    }
+    },
+    "forceConsistentCasingInFileNames": true
   },
   "include": ["src"],
+  "exclude": ["src/**/*.test.*", "src/**/*.spec.*", "src/__tests__/**/*", "src/**/test-utils/**/*", "src/test-utils.ts", "src/setupTests.ts", "src/jest-setup.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

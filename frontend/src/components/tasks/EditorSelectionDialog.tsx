@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import type { EditorType } from 'shared/types';
 import { TaskDetailsContext } from '@/components/context/taskDetailsContext.ts';
 
@@ -84,12 +85,12 @@ export function EditorSelectionDialog({
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Editor</label>
+            <Label htmlFor="editor-selection">Editor</Label>
             <Select
               value={selectedEditor}
               onValueChange={(value) => setSelectedEditor(value as EditorType)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="editor-selection">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

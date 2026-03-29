@@ -2,6 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use axum::{
     body::Body,
+    extract::DefaultBodyLimit,
     http::{header, HeaderValue, StatusCode},
     middleware::from_fn_with_state,
     response::{IntoResponse, Json as ResponseJson, Response},
@@ -21,6 +22,7 @@ mod execution_monitor;
 mod executor;
 mod executors;
 mod mcp;
+mod middleware;
 mod models;
 mod routes;
 mod services;
@@ -28,18 +30,21 @@ mod utils;
 
 use app_state::AppState;
 use execution_monitor::execution_monitor;
+use middleware::{
+    load_execution_process_simple_middleware, load_project_middleware,
+    load_task_attempt_middleware, load_task_middleware, load_task_template_middleware,
+};
 use models::{ApiResponse, Config};
-use routes::{auth, config, filesystem, health, integrations, projects, task_attempts, tasks};
+use routes::{
+    auth, config, filesystem, gallery, health, projects, stream, task_attempts, task_templates,
+    tasks,
+};
 use services::PrMonitorService;
 
 async fn echo_handler(
     Json(payload): Json<serde_json::Value>,
 ) -> ResponseJson<ApiResponse<serde_json::Value>> {
-    ResponseJson(ApiResponse {
-        success: true,
-        data: Some(payload),
-        message: Some("Echo successful".to_string()),
-    })
+    ResponseJson(ApiResponse::success(payload))
 }
 
 async fn static_handler(uri: axum::extract::Path<String>) -> impl IntoResponse {
@@ -190,19 +195,69 @@ fn main() -> anyhow::Result<()> {
                 .route("/api/health", get(health::health_check))
                 .route("/api/echo", post(echo_handler));
 
+            // Create routers with different middleware layers
+            let base_routes = Router::new()
+                .merge(stream::stream_router())
+                .merge(filesystem::filesystem_router())
+                .merge(config::config_router())
+                .merge(auth::auth_router())
+                .route("/sounds/:filename", get(serve_sound_file))
+                .merge(
+                    Router::new()
+                        .route("/execution-processes/:process_id", get(task_attempts::get_execution_process))
+                        .route_layer(from_fn_with_state(app_state.clone(), load_execution_process_simple_middleware))
+                );
+
+            // Template routes with task template middleware applied selectively
+            let template_routes = Router::new()
+                .route("/templates", get(task_templates::list_templates).post(task_templates::create_template))
+                .route("/templates/global", get(task_templates::list_global_templates))
+                .route(
+                    "/projects/:project_id/templates",
+                    get(task_templates::list_project_templates),
+                )
+                .merge(
+                    Router::new()
+                        .route(
+                            "/templates/:template_id",
+                            get(task_templates::get_template)
+                                .put(task_templates::update_template)
+                                .delete(task_templates::delete_template),
+                        )
+                        .route_layer(from_fn_with_state(app_state.clone(), load_task_template_middleware))
+                );
+
+            // Project routes with project middleware
+            let project_routes = Router::new()
+                .merge(projects::projects_base_router())
+                .merge(projects::projects_with_id_router()
+                    .layer(from_fn_with_state(app_state.clone(), load_project_middleware)));
+
+            // Task routes with appropriate middleware
+            let task_routes = Router::new()
+                .merge(tasks::tasks_project_router()
+                    .layer(from_fn_with_state(app_state.clone(), load_project_middleware)))
+                .merge(tasks::tasks_with_id_router()
+                    .layer(from_fn_with_state(app_state.clone(), load_task_middleware)));
+
+            // Task attempt routes with appropriate middleware
+            let task_attempt_routes = Router::new()
+                .merge(task_attempts::task_attempts_list_router(app_state.clone())
+                    .layer(from_fn_with_state(app_state.clone(), load_task_middleware)))
+                .merge(task_attempts::task_attempts_with_id_router(app_state.clone())
+                    .layer(from_fn_with_state(app_state.clone(), load_task_attempt_middleware)));
+
             // All routes (no auth required)
             let app_routes = Router::new()
                 .nest(
                     "/api",
                     Router::new()
-                        .merge(projects::projects_router())
-                        .merge(tasks::tasks_router())
-                        .merge(task_attempts::task_attempts_router())
-                        .merge(filesystem::filesystem_router())
-                        .merge(config::config_router())
-                        .merge(auth::auth_router())
-                        .merge(integrations::integrations_router())
-                        .route("/sounds/:filename", get(serve_sound_file))
+                        .merge(base_routes)
+                        .merge(template_routes)
+                        .merge(project_routes)
+                        .merge(task_routes)
+                        .merge(task_attempt_routes)
+                        .merge(gallery::gallery_router().layer(DefaultBodyLimit::max(100 * 1024 * 1024))) // 100MB limit for gallery uploads
                         .layer(from_fn_with_state(app_state.clone(), auth::sentry_user_context_middleware)),
                 );
 
@@ -214,6 +269,7 @@ fn main() -> anyhow::Result<()> {
                 .route("/*path", get(static_handler))
                 .with_state(app_state)
                 .layer(CorsLayer::permissive())
+                .layer(DefaultBodyLimit::max(10 * 1024 * 1024)) // 10MB default limit for other routes
                 .layer(NewSentryLayer::new_from_top());
 
             let port = std::env::var("BACKEND_PORT")
@@ -226,14 +282,15 @@ fn main() -> anyhow::Result<()> {
                     cleaned.trim().parse::<u16>().ok()
                 })
                 .unwrap_or_else(|| {
-                    tracing::error!("Failed to parse port after stripping ANSI, defaulting to 0");
+                    tracing::info!("No PORT environment variable set, using port 0 for auto-assignment");
                     0
                 }); // Use 0 to find free port if no specific port provided
 
-            let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
+            let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+            let listener = tokio::net::TcpListener::bind(format!("{host}:{port}")).await?;
             let actual_port = listener.local_addr()?.port(); // get → 53427 (example)
 
-            tracing::info!("Server running on http://0.0.0.0:{actual_port}");
+            tracing::info!("Server running on http://{host}:{actual_port}");
 
             if !cfg!(debug_assertions) {
                 tracing::info!("Opening browser...");

@@ -1,14 +1,31 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { FolderOpen, Plus, Settings } from 'lucide-react';
+import { FolderOpen, Plus, Settings, LibraryBig, Globe2 } from 'lucide-react';
 import { Loader } from '@/components/ui/loader';
-import { projectsApi, tasksApi } from '@/lib/api';
+import { projectsApi, tasksApi, templatesApi } from '@/lib/api';
 import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
 import { ProjectForm } from '@/components/projects/project-form';
+import { TaskTemplateManager } from '@/components/TaskTemplateManager';
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+
 import {
   getKanbanSectionClasses,
   getMainContainerClasses,
@@ -22,6 +39,7 @@ import type {
   ProjectWithBranch,
   TaskStatus,
   TaskWithAttemptStatus,
+  TaskTemplate,
 } from 'shared/types';
 import type { DragEndEvent } from '@/components/ui/shadcn-io/kanban';
 
@@ -41,6 +59,13 @@ export function ProjectTasks() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(
+    null
+  );
+
+  // Template management state
+  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
 
   // Panel state
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -49,6 +74,14 @@ export function ProjectTasks() {
   // Define task creation handler
   const handleCreateNewTask = useCallback(() => {
     setEditingTask(null);
+    setSelectedTemplate(null);
+    setIsTaskDialogOpen(true);
+  }, []);
+
+  // Handle template selection
+  const handleTemplateSelect = useCallback((template: TaskTemplate) => {
+    setEditingTask(null);
+    setSelectedTemplate(template);
     setIsTaskDialogOpen(true);
   }, []);
 
@@ -63,48 +96,6 @@ export function ProjectTasks() {
     }
   }, [projectId]);
 
-  // Setup keyboard shortcuts
-  useKeyboardShortcuts({
-    navigate,
-    currentPath: `/projects/${projectId}/tasks`,
-    hasOpenDialog: isTaskDialogOpen,
-    closeDialog: () => setIsTaskDialogOpen(false),
-    openCreateTask: handleCreateNewTask,
-  });
-
-  useEffect(() => {
-    if (projectId) {
-      fetchProject();
-      fetchTasks();
-
-      // Set up polling to refresh tasks every 5 seconds
-      const interval = setInterval(() => {
-        fetchTasks(true); // Skip loading spinner for polling
-      }, 2000);
-
-      // Cleanup interval on unmount
-      return () => clearInterval(interval);
-    }
-  }, [projectId]);
-
-  // Handle direct navigation to task URLs
-  useEffect(() => {
-    if (taskId && tasks.length > 0) {
-      const task = tasks.find((t) => t.id === taskId);
-      if (task) {
-        setSelectedTask((prev) => {
-          if (JSON.stringify(prev) === JSON.stringify(task)) return prev;
-          return task;
-        });
-        setIsPanelOpen(true);
-      }
-    } else {
-      // Close panel when no taskId in URL
-      setIsPanelOpen(false);
-      setSelectedTask(null);
-    }
-  }, [taskId, tasks]);
-
   const fetchProject = useCallback(async () => {
     try {
       const result = await projectsApi.getWithBranch(projectId!);
@@ -112,7 +103,33 @@ export function ProjectTasks() {
     } catch (err) {
       setError('Failed to load project');
     }
-  }, [projectId, navigate]);
+  }, [projectId]);
+
+  const fetchTemplates = useCallback(async () => {
+    if (!projectId) return;
+
+    try {
+      const [projectTemplates, globalTemplates] = await Promise.all([
+        templatesApi.listByProject(projectId),
+        templatesApi.listGlobal(),
+      ]);
+
+      // Combine templates with project templates first
+      setTemplates([...projectTemplates, ...globalTemplates]);
+    } catch (err) {
+      console.error('Failed to fetch templates:', err);
+    }
+  }, [projectId]);
+
+  // Template management handlers
+  const handleOpenTemplateManager = useCallback(() => {
+    setIsTemplateManagerOpen(true);
+  }, []);
+
+  const handleCloseTemplateManager = useCallback(() => {
+    setIsTemplateManagerOpen(false);
+    fetchTemplates(); // Refresh templates list when closing
+  }, [fetchTemplates]);
 
   const fetchTasks = useCallback(
     async (skipLoading = false) => {
@@ -153,6 +170,16 @@ export function ProjectTasks() {
     [projectId]
   );
 
+  const handleViewTaskDetails = useCallback(
+    (task: Task) => {
+      // setSelectedTask(task);
+      // setIsPanelOpen(true);
+      // Update URL to include task ID
+      navigate(`/projects/${projectId}/tasks/${task.id}`, { replace: true });
+    },
+    [projectId, navigate]
+  );
+
   const handleCreateTask = useCallback(
     async (title: string, description: string) => {
       try {
@@ -160,6 +187,7 @@ export function ProjectTasks() {
           project_id: projectId!,
           title,
           description: description || null,
+          parent_task_attempt: null,
         });
         await fetchTasks();
         // Open the newly created task in the details panel
@@ -180,6 +208,7 @@ export function ProjectTasks() {
           project_id: projectId!,
           title,
           description: description || null,
+          parent_task_attempt: null,
           executor: executor || null,
         };
         const result = await tasksApi.createAndStart(projectId!, payload);
@@ -190,7 +219,7 @@ export function ProjectTasks() {
         setError('Failed to create and start task');
       }
     },
-    [projectId, fetchTasks]
+    [projectId, fetchTasks, handleViewTaskDetails]
   );
 
   const handleUpdateTask = useCallback(
@@ -202,6 +231,7 @@ export function ProjectTasks() {
           title,
           description: description || null,
           status,
+          parent_task_attempt: null,
         });
         await fetchTasks();
         setEditingTask(null);
@@ -230,16 +260,6 @@ export function ProjectTasks() {
     setEditingTask(task);
     setIsTaskDialogOpen(true);
   }, []);
-
-  const handleViewTaskDetails = useCallback(
-    (task: Task) => {
-      // setSelectedTask(task);
-      // setIsPanelOpen(true);
-      // Update URL to include task ID
-      navigate(`/projects/${projectId}/tasks/${task.id}`, { replace: true });
-    },
-    [projectId, navigate]
-  );
 
   const handleClosePanel = useCallback(() => {
     // setIsPanelOpen(false);
@@ -276,6 +296,7 @@ export function ProjectTasks() {
           title: task.title,
           description: task.description,
           status: newStatus,
+          parent_task_attempt: task.parent_task_attempt,
         });
       } catch (err) {
         // Revert the optimistic update if the API call failed
@@ -289,6 +310,57 @@ export function ProjectTasks() {
     },
     [projectId, tasks]
   );
+
+  // Setup keyboard shortcuts
+  useKeyboardShortcuts({
+    navigate,
+    currentPath: `/projects/${projectId}/tasks`,
+    hasOpenDialog:
+      isTaskDialogOpen || isTemplateManagerOpen || isProjectSettingsOpen,
+    closeDialog: () => setIsTaskDialogOpen(false),
+    onC: handleCreateNewTask,
+  });
+
+  // Initialize data when projectId changes
+  useEffect(() => {
+    if (projectId) {
+      fetchProject();
+      fetchTasks();
+      fetchTemplates();
+
+      // Set up polling to refresh tasks every 5 seconds
+      const interval = setInterval(() => {
+        fetchTasks(true); // Skip loading spinner for polling
+      }, 2000);
+
+      // Cleanup interval on unmount
+      return () => clearInterval(interval);
+    }
+  }, [projectId, fetchProject, fetchTasks, fetchTemplates]);
+
+  // Handle direct navigation to task URLs
+  useEffect(() => {
+    if (taskId && tasks.length > 0) {
+      const task = tasks.find((t) => t.id === taskId);
+      if (task) {
+        setSelectedTask((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(task)) return prev;
+          return task;
+        });
+        setIsPanelOpen(true);
+      } else {
+        // Task not found in current array - refetch to get latest data
+        fetchTasks(true);
+      }
+    } else if (taskId && tasks.length === 0 && !loading) {
+      // If we have a taskId but no tasks loaded, fetch tasks
+      fetchTasks();
+    } else if (!taskId) {
+      // Close panel when no taskId in URL
+      setIsPanelOpen(false);
+      setSelectedTask(null);
+    }
+  }, [taskId, tasks, loading, fetchTasks]);
 
   if (loading) {
     return <Loader message="Loading tasks..." size={32} className="py-8" />;
@@ -343,6 +415,69 @@ export function ProjectTasks() {
               <Plus className="h-4 w-4 mr-2" />
               Add Task
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <LibraryBig className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[250px]">
+                <DropdownMenuItem onClick={handleOpenTemplateManager}>
+                  <Plus className="h-3 w-3 mr-2" />
+                  Manage Templates
+                </DropdownMenuItem>
+                {templates.length > 0 && <DropdownMenuSeparator />}
+
+                {/* Project Templates */}
+                {templates.filter((t) => t.project_id !== null).length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                      Project Templates
+                    </div>
+                    {templates
+                      .filter((t) => t.project_id !== null)
+                      .map((template) => (
+                        <DropdownMenuItem
+                          key={template.id}
+                          onClick={() => handleTemplateSelect(template)}
+                        >
+                          <span className="truncate">
+                            {template.template_name}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                  </>
+                )}
+
+                {/* Separator if both types exist */}
+                {templates.filter((t) => t.project_id !== null).length > 0 &&
+                  templates.filter((t) => t.project_id === null).length > 0 && (
+                    <DropdownMenuSeparator />
+                  )}
+
+                {/* Global Templates */}
+                {templates.filter((t) => t.project_id === null).length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                      Global Templates
+                    </div>
+                    {templates
+                      .filter((t) => t.project_id === null)
+                      .map((template) => (
+                        <DropdownMenuItem
+                          key={template.id}
+                          onClick={() => handleTemplateSelect(template)}
+                        >
+                          <Globe2 className="h-3 w-3 mr-2 text-muted-foreground" />
+                          <span className="truncate">
+                            {template.template_name}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -371,6 +506,7 @@ export function ProjectTasks() {
                 onEditTask={handleEditTask}
                 onDeleteTask={handleDeleteTask}
                 onViewTaskDetails={handleViewTaskDetails}
+                isPanelOpen={isPanelOpen}
               />
             </div>
           </div>
@@ -393,12 +529,18 @@ export function ProjectTasks() {
       {/* Dialogs - rendered at main container level to avoid stacking issues */}
       <TaskFormDialog
         isOpen={isTaskDialogOpen}
-        onOpenChange={setIsTaskDialogOpen}
+        onOpenChange={(open) => {
+          setIsTaskDialogOpen(open);
+          if (!open) {
+            setSelectedTemplate(null);
+          }
+        }}
         task={editingTask}
         projectId={projectId}
         onCreateTask={handleCreateTask}
         onCreateAndStartTask={handleCreateAndStartTask}
         onUpdateTask={handleUpdateTask}
+        initialTemplate={selectedTemplate}
       />
 
       <ProjectForm
@@ -407,6 +549,24 @@ export function ProjectTasks() {
         onSuccess={handleProjectSettingsSuccess}
         project={project}
       />
+
+      {/* Template Manager Dialog */}
+      <Dialog
+        open={isTemplateManagerOpen}
+        onOpenChange={setIsTemplateManagerOpen}
+      >
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Templates</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <TaskTemplateManager projectId={projectId} />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleCloseTemplateManager}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

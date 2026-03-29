@@ -1,8 +1,10 @@
 pub mod auth;
 pub mod config;
 pub mod filesystem;
+pub mod gallery;
 pub mod health;
-pub mod integrations;
 pub mod projects;
+pub mod stream;
 pub mod task_attempts;
+pub mod task_templates;
 pub mod tasks;

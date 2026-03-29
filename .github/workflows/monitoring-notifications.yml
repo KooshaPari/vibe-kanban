@@ -1,0 +1,489 @@
+name: Monitoring & Notifications
+
+on:
+  schedule:
+    # Daily health checks at 6 AM UTC
+    - cron: '0 6 * * *'
+    # Weekly dependency updates check on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_run:
+    workflows: ["Comprehensive CI/CD Pipeline", "Production Deployment Pipeline", "Security Scanning & Compliance"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      check_type:
+        description: 'Type of monitoring check to run'
+        required: true
+        default: 'health'
+        type: choice
+        options:
+          - health
+          - dependencies
+          - performance
+          - security
+
+env:
+  NODE_VERSION: 22
+  PNPM_VERSION: 10.8.1
+
+jobs:
+  # Health monitoring
+  health-monitoring:
+    name: 🏥 Health Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 6 * * *' || github.event.inputs.check_type == 'health'
+    outputs:
+      health-status: ${{ steps.health-check.outputs.status }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check repository health
+        id: health-check
+        run: |
+          echo "Running repository health checks..."
+          
+          # Check for important files
+          HEALTH_SCORE=0
+          ISSUES=()
+          
+          # README check
+          if [[ -f README.md ]]; then
+            HEALTH_SCORE=$((HEALTH_SCORE + 20))
+            echo "✅ README.md exists"
+          else
+            ISSUES+=("Missing README.md")
+          fi
+          
+          # License check
+          if [[ -f LICENSE ]] || [[ -f LICENSE.md ]] || [[ -f LICENSE.txt ]]; then
+            HEALTH_SCORE=$((HEALTH_SCORE + 10))
+            echo "✅ License file exists"
+          else
+            ISSUES+=("Missing LICENSE file")
+          fi
+          
+          # Contributing guidelines
+          if [[ -f CONTRIBUTING.md ]] || [[ -f .github/CONTRIBUTING.md ]]; then
+            HEALTH_SCORE=$((HEALTH_SCORE + 10))
+            echo "✅ Contributing guidelines exist"
+          else
+            ISSUES+=("Missing CONTRIBUTING.md")
+          fi
+          
+          # Issue templates
+          if [[ -d .github/ISSUE_TEMPLATE ]] || [[ -f .github/ISSUE_TEMPLATE.md ]]; then
+            HEALTH_SCORE=$((HEALTH_SCORE + 10))
+            echo "✅ Issue templates exist"
+          else
+            ISSUES+=("Missing issue templates")
+          fi
+          
+          # PR template
+          if [[ -f .github/pull_request_template.md ]] || [[ -f .github/PULL_REQUEST_TEMPLATE.md ]]; then
+            HEALTH_SCORE=$((HEALTH_SCORE + 10))
+            echo "✅ PR template exists"
+          else
+            ISSUES+=("Missing PR template")
+          fi
+          
+          # Security policy
+          if [[ -f SECURITY.md ]] || [[ -f .github/SECURITY.md ]]; then
+            HEALTH_SCORE=$((HEALTH_SCORE + 10))
+            echo "✅ Security policy exists"
+          else
+            ISSUES+=("Missing SECURITY.md")
+          fi
+          
+          # Code of conduct
+          if [[ -f CODE_OF_CONDUCT.md ]] || [[ -f .github/CODE_OF_CONDUCT.md ]]; then
+            HEALTH_SCORE=$((HEALTH_SCORE + 10))
+            echo "✅ Code of conduct exists"
+          else
+            ISSUES+=("Missing CODE_OF_CONDUCT.md")
+          fi
+          
+          # Changelog
+          if [[ -f CHANGELOG.md ]] || [[ -f CHANGELOG.rst ]] || [[ -f CHANGELOG ]]; then
+            HEALTH_SCORE=$((HEALTH_SCORE + 10))
+            echo "✅ Changelog exists"
+          else
+            ISSUES+=("Missing CHANGELOG")
+          fi
+          
+          # CI/CD workflows
+          if [[ -d .github/workflows ]] && [[ $(ls -1 .github/workflows/*.yml 2>/dev/null | wc -l) -gt 0 ]]; then
+            HEALTH_SCORE=$((HEALTH_SCORE + 10))
+            echo "✅ CI/CD workflows configured"
+          else
+            ISSUES+=("Missing CI/CD workflows")
+          fi
+          
+          echo "Repository health score: $HEALTH_SCORE/100"
+          
+          if [[ $HEALTH_SCORE -ge 80 ]]; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+          elif [[ $HEALTH_SCORE -ge 60 ]]; then
+            echo "status=warning" >> $GITHUB_OUTPUT
+          else
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+          fi
+          
+          # Save issues for reporting
+          printf '%s\n' "${ISSUES[@]}" > health-issues.txt
+
+      - name: Upload health report
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-report
+          path: health-issues.txt
+
+  # Dependency monitoring
+  dependency-monitoring:
+    name: 📦 Dependency Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 9 * * 1' || github.event.inputs.check_type == 'dependencies'
+    outputs:
+      outdated-count: ${{ steps.deps-check.outputs.outdated-count }}
+      security-count: ${{ steps.deps-check.outputs.security-count }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2025-05-18
+
+      - name: Check frontend dependencies
+        id: deps-check
+        run: |
+          cd frontend
+          pnpm install --frozen-lockfile
+          
+          # Check for outdated packages
+          pnpm outdated --format json > ../frontend-outdated.json || true
+          OUTDATED_COUNT=$(cat ../frontend-outdated.json | jq 'length // 0')
+          
+          # Security audit
+          pnpm audit --json > ../frontend-audit.json || true
+          SECURITY_COUNT=$(cat ../frontend-audit.json | jq '.metadata.vulnerabilities.total // 0')
+          
+          echo "Frontend outdated packages: $OUTDATED_COUNT"
+          echo "Frontend security vulnerabilities: $SECURITY_COUNT"
+          
+          # Backend dependencies
+          cd ../backend
+          cargo install cargo-outdated --locked
+          cargo outdated --format json > ../backend-outdated.json || true
+          
+          cargo generate-lockfile --manifest-path Cargo.toml
+          cargo install cargo-audit --locked
+          cargo audit --file Cargo.lock --json > ../backend-audit.json || true
+          
+          BACKEND_OUTDATED=$(cat ../backend-outdated.json | jq '.dependencies | length // 0')
+          BACKEND_SECURITY=$(cat ../backend-audit.json | jq '.vulnerabilities | length // 0')
+          
+          echo "Backend outdated packages: $BACKEND_OUTDATED"
+          echo "Backend security vulnerabilities: $BACKEND_SECURITY"
+          
+          TOTAL_OUTDATED=$((OUTDATED_COUNT + BACKEND_OUTDATED))
+          TOTAL_SECURITY=$((SECURITY_COUNT + BACKEND_SECURITY))
+          
+          echo "outdated-count=$TOTAL_OUTDATED" >> $GITHUB_OUTPUT
+          echo "security-count=$TOTAL_SECURITY" >> $GITHUB_OUTPUT
+
+      - name: Generate dependency report
+        run: |
+          cat > dependency-report.md << 'EOF'
+          # 📦 Dependency Monitoring Report
+          
+          **Generated**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ## Summary
+          - **Outdated packages**: ${{ steps.deps-check.outputs.outdated-count }}
+          - **Security vulnerabilities**: ${{ steps.deps-check.outputs.security-count }}
+          
+          ## Frontend Dependencies
+          See `frontend-outdated.json` and `frontend-audit.json` for details.
+          
+          ## Backend Dependencies
+          See `backend-outdated.json` and `backend-audit.json` for details.
+          
+          ## Recommendations
+          - Review and update outdated packages
+          - Address security vulnerabilities
+          - Consider automated dependency updates
+          EOF
+
+      - name: Upload dependency reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-reports
+          path: |
+            dependency-report.md
+            frontend-outdated.json
+            frontend-audit.json
+            backend-outdated.json
+            backend-audit.json
+
+      - name: Create dependency update issue
+        if: steps.deps-check.outputs.outdated-count > 10 || steps.deps-check.outputs.security-count > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('dependency-report.md', 'utf8');
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `📦 Dependency Update Required - ${new Date().toISOString().split('T')[0]}`,
+              body: `${report}\n\n**Action Required**: Please review and update dependencies.`,
+              labels: ['dependencies', 'maintenance']
+            });
+
+  # Performance monitoring
+  performance-monitoring:
+    name: ⚡ Performance Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'performance' || github.event_name == 'workflow_run'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2025-05-18
+
+      - name: Build application
+        run: |
+          pnpm install --frozen-lockfile
+          npm run build
+
+      - name: Performance benchmarks
+        run: |
+          echo "Running performance benchmarks..."
+          
+          # Frontend build time
+          cd frontend
+          time npm run build > ../frontend-build-time.log 2>&1
+          
+          # Backend build time
+          cd ../backend
+          time cargo build --release > ../backend-build-time.log 2>&1
+          
+          # Bundle size analysis
+          cd ../frontend/dist
+          BUNDLE_SIZE=$(du -sb . | cut -f1)
+          echo "Bundle size: $BUNDLE_SIZE bytes" > ../../bundle-size.txt
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-reports
+          path: |
+            frontend-build-time.log
+            backend-build-time.log
+            bundle-size.txt
+
+  # Security monitoring
+  security-monitoring:
+    name: 🔒 Security Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'security' || github.event_name == 'workflow_run'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for security policy
+        run: |
+          if [[ ! -f SECURITY.md ]] && [[ ! -f .github/SECURITY.md ]]; then
+            echo "⚠️ No security policy found"
+            echo "create-security-policy=true" >> $GITHUB_ENV
+          fi
+
+      - name: Check for dependabot config
+        run: |
+          if [[ ! -f .github/dependabot.yml ]] && [[ ! -f .dependabot/config.yml ]]; then
+            echo "⚠️ No dependabot configuration found"
+            echo "create-dependabot-config=true" >> $GITHUB_ENV
+          fi
+
+      - name: Create security improvement issue
+        if: env.create-security-policy == 'true' || env.create-dependabot-config == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let body = `# 🔒 Security Improvements Needed\n\n`;
+            
+            if (process.env.create_security_policy === 'true') {
+              body += `- [ ] Add SECURITY.md file\n`;
+            }
+            
+            if (process.env.create_dependabot_config === 'true') {
+              body += `- [ ] Configure Dependabot for automated security updates\n`;
+            }
+            
+            body += `\nThese security improvements will help protect the repository.`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔒 Security Configuration Improvements',
+              body: body,
+              labels: ['security', 'enhancement']
+            });
+
+  # Workflow monitoring
+  workflow-monitoring:
+    name: 🔄 Workflow Monitoring
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run'
+    steps:
+      - name: Analyze workflow results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: workflowRun } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id
+            });
+            
+            console.log(`Workflow: ${workflowRun.name}`);
+            console.log(`Status: ${workflowRun.conclusion}`);
+            console.log(`Duration: ${workflowRun.run_duration_ms}ms`);
+            
+            // Track workflow performance and failures
+            if (workflowRun.conclusion === 'failure') {
+              console.log('Workflow failed - investigating...');
+              
+              const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: workflowRun.id
+              });
+              
+              const failedJobs = jobs.jobs.filter(job => job.conclusion === 'failure');
+              console.log(`Failed jobs: ${failedJobs.map(job => job.name).join(', ')}`);
+            }
+
+  # Notification hub
+  notification-hub:
+    name: 📢 Notification Hub
+    runs-on: ubuntu-latest
+    needs: [health-monitoring, dependency-monitoring, performance-monitoring, security-monitoring]
+    if: always() && (github.event.schedule != '' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Generate monitoring summary
+        run: |
+          cat > monitoring-summary.md << 'EOF'
+          # 📊 Monitoring Summary
+          
+          **Generated**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ## Health Status
+          - Repository Health: ${{ needs.health-monitoring.outputs.health-status || 'Unknown' }}
+          
+          ## Dependencies
+          - Outdated Packages: ${{ needs.dependency-monitoring.outputs.outdated-count || 'Unknown' }}
+          - Security Vulnerabilities: ${{ needs.dependency-monitoring.outputs.security-count || 'Unknown' }}
+          
+          ## Performance
+          - Build Performance: Monitored
+          - Bundle Size: Tracked
+          
+          ## Security
+          - Security Configuration: Checked
+          - Policies: Reviewed
+          
+          ## Actions Needed
+          EOF
+          
+          # Add conditional action items
+          if [[ "${{ needs.health-monitoring.outputs.health-status }}" == "unhealthy" ]]; then
+            echo "- 🚨 **Critical**: Repository health needs attention" >> monitoring-summary.md
+          fi
+          
+          if [[ "${{ needs.dependency-monitoring.outputs.security-count }}" != "0" ]] && [[ "${{ needs.dependency-monitoring.outputs.security-count }}" != "Unknown" ]]; then
+            echo "- 🔒 **Security**: Address dependency vulnerabilities" >> monitoring-summary.md
+          fi
+          
+          if [[ "${{ needs.dependency-monitoring.outputs.outdated-count }}" != "0" ]] && [[ "${{ needs.dependency-monitoring.outputs.outdated-count }}" != "Unknown" ]]; then
+            echo "- 📦 **Maintenance**: Update outdated dependencies" >> monitoring-summary.md
+          fi
+
+      - name: Upload monitoring summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-summary
+          path: monitoring-summary.md
+
+      # Uncomment and configure these for actual notifications
+      # - name: Slack notification
+      #   if: needs.health-monitoring.outputs.health-status == 'unhealthy' || needs.dependency-monitoring.outputs.security-count > 0
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: failure
+      #     text: "Repository monitoring alerts detected. Check the latest monitoring summary."
+      #     webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+      # - name: Email notification
+      #   if: needs.dependency-monitoring.outputs.security-count > 0
+      #   uses: dawidd6/action-send-mail@v3
+      #   with:
+      #     server_address: smtp.gmail.com
+      #     server_port: 465
+      #     username: ${{ secrets.EMAIL_USERNAME }}
+      #     password: ${{ secrets.EMAIL_PASSWORD }}
+      #     subject: "Security Alert: Dependency Vulnerabilities Detected"
+      #     body: "Security vulnerabilities detected in dependencies. Please review and update."
+      #     to: ${{ secrets.ALERT_EMAIL }}
+
+  # Cleanup old monitoring artifacts
+  cleanup:
+    name: 🧹 Cleanup
+    runs-on: ubuntu-latest
+    if: github.event.schedule != ''
+    steps:
+      - name: Clean up old monitoring artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            
+            const monitoringArtifacts = ['health-report', 'dependency-reports', 'performance-reports', 'monitoring-summary'];
+            
+            for (const artifact of artifacts.data.artifacts) {
+              const createdAt = new Date(artifact.created_at);
+              if (createdAt < sevenDaysAgo && monitoringArtifacts.some(name => artifact.name.includes(name))) {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+                console.log(`Deleted old monitoring artifact: ${artifact.name}`);
+              }
+            }

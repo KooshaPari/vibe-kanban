@@ -12,34 +12,37 @@ import {
 import type {
   EditorType,
   ExecutionProcess,
+  ExecutionProcessSummary,
+  Task,
   TaskAttempt,
   TaskAttemptState,
   TaskWithAttemptStatus,
   WorktreeDiff,
 } from 'shared/types.ts';
-import { attemptsApi, executionProcessesApi } from '@/lib/api.ts';
+import { attemptsApi, executionProcessesApi, tasksApi } from '@/lib/api.ts';
 import {
   TaskAttemptDataContext,
   TaskAttemptLoadingContext,
   TaskAttemptStoppingContext,
-  TaskAttemptsContext,
   TaskBackgroundRefreshContext,
   TaskDeletingFilesContext,
   TaskDetailsContext,
   TaskDiffContext,
   TaskExecutionStateContext,
+  TaskRelatedTasksContext,
   TaskSelectedAttemptContext,
 } from './taskDetailsContext.ts';
-import { AttemptData } from '@/lib/types.ts';
+import type { AttemptData } from '@/lib/types.ts';
 
 const TaskDetailsProvider: FC<{
   task: TaskWithAttemptStatus;
   projectId: string;
   children: ReactNode;
-  activeTab: 'logs' | 'diffs' | 'visualizations';
-  setActiveTab: Dispatch<SetStateAction<'logs' | 'diffs' | 'visualizations'>>;
+  activeTab: 'logs' | 'diffs' | 'gallery' | 'related';
+  setActiveTab: Dispatch<
+    SetStateAction<'logs' | 'diffs' | 'gallery' | 'related'>
+  >;
   setShowEditorDialog: Dispatch<SetStateAction<boolean>>;
-  userSelectedTab: boolean;
   projectHasDevScript?: boolean;
 }> = ({
   task,
@@ -48,7 +51,6 @@ const TaskDetailsProvider: FC<{
   activeTab,
   setActiveTab,
   setShowEditorDialog,
-  userSelectedTab,
   projectHasDevScript,
 }) => {
   const [loading, setLoading] = useState(false);
@@ -65,19 +67,56 @@ const TaskDetailsProvider: FC<{
   const [diffError, setDiffError] = useState<string | null>(null);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
 
+  // Related tasks state
+  const [relatedTasks, setRelatedTasks] = useState<Task[] | null>(null);
+  const [relatedTasksLoading, setRelatedTasksLoading] = useState(true);
+  const [relatedTasksError, setRelatedTasksError] = useState<string | null>(
+    null
+  );
+
   const [executionState, setExecutionState] = useState<TaskAttemptState | null>(
     null
   );
 
   const [attemptData, setAttemptData] = useState<AttemptData>({
-    activities: [],
     processes: [],
     runningProcessDetails: {},
+    allLogs: [], // new field for all logs
   });
 
-  const [taskAttempts, setTaskAttempts] = useState<TaskAttempt[]>([]);
+  const relatedTasksLoadingRef = useRef(false);
 
-  const diffLoadingRef = useRef(false);
+  const fetchRelatedTasks = useCallback(async () => {
+    if (!projectId || !task?.id || !selectedAttempt?.id) {
+      setRelatedTasks(null);
+      setRelatedTasksLoading(false);
+      return;
+    }
+
+    // Prevent multiple concurrent requests
+    if (relatedTasksLoadingRef.current) {
+      return;
+    }
+
+    relatedTasksLoadingRef.current = true;
+    setRelatedTasksLoading(true);
+    setRelatedTasksError(null);
+
+    try {
+      const children = await tasksApi.getChildren(
+        projectId,
+        task.id,
+        selectedAttempt.id
+      );
+      setRelatedTasks(children);
+    } catch (err) {
+      console.error('Failed to load related tasks:', err);
+      setRelatedTasksError('Failed to load related tasks');
+    } finally {
+      relatedTasksLoadingRef.current = false;
+      setRelatedTasksLoading(false);
+    }
+  }, [projectId, task?.id, selectedAttempt?.id]);
 
   const fetchDiff = useCallback(
     async (isBackgroundRefresh = false) => {
@@ -87,12 +126,6 @@ const TaskDetailsProvider: FC<{
         return;
       }
 
-      // Prevent multiple concurrent requests
-      if (diffLoadingRef.current) {
-        return;
-      }
-
-      diffLoadingRef.current = true;
       if (isBackgroundRefresh) {
         setIsBackgroundRefreshing(true);
       } else {
@@ -114,7 +147,6 @@ const TaskDetailsProvider: FC<{
         console.error('Failed to load diff:', err);
         setDiffError('Failed to load diff');
       } finally {
-        diffLoadingRef.current = false;
         if (isBackgroundRefresh) {
           setIsBackgroundRefreshing(false);
         } else {
@@ -126,8 +158,19 @@ const TaskDetailsProvider: FC<{
   );
 
   useEffect(() => {
-    fetchDiff();
-  }, [fetchDiff]);
+    if (selectedAttempt && task) {
+      fetchRelatedTasks();
+    } else if (task && !selectedAttempt) {
+      // If we have a task but no selectedAttempt, wait a bit then clear loading state
+      // This happens when a task has no attempts yet
+      const timeout = setTimeout(() => {
+        setRelatedTasks(null);
+        setRelatedTasksLoading(false);
+      }, 1000); // Wait 1 second for attempts to load
+
+      return () => clearTimeout(timeout);
+    }
+  }, [selectedAttempt, task, fetchRelatedTasks]);
 
   const fetchExecutionState = useCallback(
     async (attemptId: string, taskId: string) => {
@@ -179,29 +222,24 @@ const TaskDetailsProvider: FC<{
       if (!task) return;
 
       try {
-        const [activitiesResult, processesResult] = await Promise.all([
-          attemptsApi.getActivities(projectId, taskId, attemptId),
+        const [processesResult, allLogsResult] = await Promise.all([
           attemptsApi.getExecutionProcesses(projectId, taskId, attemptId),
+          attemptsApi.getAllLogs(projectId, taskId, attemptId),
         ]);
 
-        if (activitiesResult !== undefined && processesResult !== undefined) {
-          const runningActivities = activitiesResult.filter(
-            (activity) =>
-              activity.status === 'setuprunning' ||
-              activity.status === 'executorrunning'
+        if (processesResult !== undefined && allLogsResult !== undefined) {
+          const runningProcesses = processesResult.filter(
+            (process) => process.status === 'running'
           );
 
           const runningProcessDetails: Record<string, ExecutionProcess> = {};
 
-          // Fetch details for running activities
-          for (const activity of runningActivities) {
-            const result = await executionProcessesApi.getDetails(
-              projectId,
-              activity.execution_process_id
-            );
+          // Fetch details for running processes
+          for (const process of runningProcesses) {
+            const result = await executionProcessesApi.getDetails(process.id);
 
             if (result !== undefined) {
-              runningProcessDetails[activity.execution_process_id] = result;
+              runningProcessDetails[process.id] = result;
             }
           }
 
@@ -211,7 +249,6 @@ const TaskDetailsProvider: FC<{
           );
           if (setupProcess && !runningProcessDetails[setupProcess.id]) {
             const result = await executionProcessesApi.getDetails(
-              projectId,
               setupProcess.id
             );
 
@@ -220,11 +257,11 @@ const TaskDetailsProvider: FC<{
             }
           }
 
-          setAttemptData((prev) => {
+          setAttemptData((prev: AttemptData) => {
             const newData = {
-              activities: activitiesResult,
               processes: processesResult,
               runningProcessDetails,
+              allLogs: allLogsResult,
             };
             if (JSON.stringify(prev) === JSON.stringify(newData)) return prev;
             return newData;
@@ -250,7 +287,7 @@ const TaskDetailsProvider: FC<{
     }
 
     return attemptData.processes.some(
-      (process) =>
+      (process: ExecutionProcessSummary) =>
         (process.process_type === 'codingagent' ||
           process.process_type === 'setupscript') &&
         process.status === 'running'
@@ -265,7 +302,7 @@ const TaskDetailsProvider: FC<{
         fetchAttemptData(selectedAttempt.id, selectedAttempt.task_id);
         fetchExecutionState(selectedAttempt.id, selectedAttempt.task_id);
       }
-    }, 2000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [
@@ -302,32 +339,12 @@ const TaskDetailsProvider: FC<{
   useEffect(() => {
     if (!executionState?.execution_state || !selectedAttempt) return;
 
-    const isCodingAgentComplete =
-      executionState.execution_state === 'CodingAgentComplete';
-    const isCodingAgentFailed =
-      executionState.execution_state === 'CodingAgentFailed';
-    const isComplete = executionState.execution_state === 'Complete';
-    const hasChanges = executionState.has_changes;
-
-    // Fetch diff when coding agent completes, fails, or task is complete and has changes
-    if (
-      (isCodingAgentComplete || isCodingAgentFailed || isComplete) &&
-      hasChanges
-    ) {
-      fetchDiff();
-      // Auto-switch to diffs tab when changes are detected, but only if user hasn't manually selected a tab
-      if (activeTab === 'logs' && !userSelectedTab) {
-        setActiveTab('diffs');
-      }
-    }
+    fetchDiff();
   }, [
     executionState?.execution_state,
     executionState?.has_changes,
     selectedAttempt,
     fetchDiff,
-    activeTab,
-    userSelectedTab,
-    setActiveTab,
   ]);
 
   const value = useMemo(
@@ -336,8 +353,10 @@ const TaskDetailsProvider: FC<{
       projectId,
       handleOpenInEditor,
       projectHasDevScript,
+      activeTab,
+      setActiveTab,
     }),
-    [task, projectId, handleOpenInEditor, projectHasDevScript]
+    [task, projectId, handleOpenInEditor, projectHasDevScript, activeTab, setActiveTab]
   );
 
   const taskAttemptLoadingValue = useMemo(
@@ -403,12 +422,25 @@ const TaskDetailsProvider: FC<{
     [executionState, fetchExecutionState]
   );
 
-  const taskAttemptsValue = useMemo(
+  const relatedTasksValue = useMemo(
     () => ({
-      taskAttempts,
-      setTaskAttempts,
+      relatedTasks,
+      setRelatedTasks,
+      relatedTasksLoading,
+      setRelatedTasksLoading,
+      relatedTasksError,
+      setRelatedTasksError,
+      fetchRelatedTasks,
+      totalRelatedCount:
+        (task?.parent_task_attempt ? 1 : 0) + (relatedTasks?.length || 0),
     }),
-    [taskAttempts]
+    [
+      relatedTasks,
+      relatedTasksLoading,
+      relatedTasksError,
+      fetchRelatedTasks,
+      task?.parent_task_attempt,
+    ]
   );
 
   return (
@@ -425,9 +457,11 @@ const TaskDetailsProvider: FC<{
                     <TaskBackgroundRefreshContext.Provider
                       value={backgroundRefreshingValue}
                     >
-                      <TaskAttemptsContext.Provider value={taskAttemptsValue}>
+                      <TaskRelatedTasksContext.Provider
+                        value={relatedTasksValue}
+                      >
                         {children}
-                      </TaskAttemptsContext.Provider>
+                      </TaskRelatedTasksContext.Provider>
                     </TaskBackgroundRefreshContext.Provider>
                   </TaskExecutionStateContext.Provider>
                 </TaskAttemptDataContext.Provider>
