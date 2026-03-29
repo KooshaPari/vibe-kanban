@@ -1,7 +1,6 @@
 # Rust
-/target
+target/
 **/*.rs.bk
-Cargo.lock
 
 # Node.js
 node_modules/
@@ -13,13 +12,16 @@ yarn-error.log*
 # Build outputs
 /dist
 /build
+bindings/
 
 # Environment variables
 .env
+.env.remote
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 
 # IDE
 .vscode/
@@ -36,10 +38,6 @@ yarn-error.log*
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Logs
-*.log
-logs/
 
 # Runtime data
 pids
@@ -68,17 +66,32 @@ coverage/
 .storybook-out
 
 .env
-frontend/dist
-backend/bindings
+packages/**/dist
 
 build-npm-package-codesign.sh
 
+npx-cli/bin/
 npx-cli/dist
-backend/db.sqlite
+npx-cli/vibe-kanban-*
+vibe-kanban-*.tgz
 
 # Development ports file
 .dev-ports.json
 
 dev_assets
-/frontend/.env.sentry-build-plugin
+/packages/web/.env.sentry-build-plugin
 .ssh
+
+vibe-kanban-cloud/
+
+.jj
+.sisyphus/
+
+# Vite temp files
+*.timestamp-*.mjs
+
+# Mobile testing (per-developer, do not commit)
+*.ts.net.crt
+*.ts.net.key
+Caddyfile
+Caddyfile.dev
