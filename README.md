@@ -33,6 +33,8 @@ I PROMISE IT WILL NOT THOUGH.
 
 In a world where software engineers spend most of their time planning and reviewing coding agents, the most impactful way to ship more is to get faster at planning and review.
 
+[![AI slop inside](https://sladge.net/badge.svg)](https://sladge.net) [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/KooshaPari/vibe-kanban/total)](https://github.com/KooshaPari/vibe-kanban/releases)
+
 Vibe Kanban is built for this. Use kanban issues to plan work, either privately or with your team. When you're ready to begin, create workspaces where coding agents can execute.
 
 - **Plan with kanban issues** — create, prioritise, and assign issues on a kanban board
